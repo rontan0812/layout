@@ -1,6 +1,23 @@
 import { useEffect, useState } from "react";
 
-export default function LeftBar({ onCreate, initialWidth = 10, initialHeight = 10, onStart, making = false, onDelete, onAddFurniture, onRemoveFurniture, onClearFurniture, furnitureList = [], selectedIndex = null, onSelectFurniture = null, onUpdateFurniture = null }) {
+export default function LeftBar(props) {
+    const {
+        onCreate,
+        initialWidth = 10,
+        initialHeight = 10,
+        onStart,
+        making = false,
+        onDelete,
+        onAddFurniture,
+        onRemoveFurniture,
+        onClearFurniture,
+        furnitureList = [],
+        selectedIndex = null,
+        onSelectFurniture = null,
+        onUpdateFurniture = null,
+        switchDim = false,
+        onSwitchDim = null
+    } = props;
     const [widthInput, setWidthInput] = useState(initialWidth);
     const [heightInput, setHeightInput] = useState(initialHeight);
 
@@ -218,7 +235,15 @@ export default function LeftBar({ onCreate, initialWidth = 10, initialHeight = 1
             </details>
             <details className="leftbarContents">
                 <summary className="summary">表示</summary>
-                <button onClick={} style={{ background: '#33f', color:'#fff', width:'100%' }}>3D化</button>
+                <button onClick={() => { 
+                    console.log('Button clicked, current switchDim:', switchDim);
+                    if (typeof onSwitchDim === 'function') {
+                        onSwitchDim(!switchDim);
+                        console.log('Switched to:', !switchDim);
+                    }
+                }} style={{ background: switchDim ? '#33f' : '#999', color:'#fff', width:'100%' }}>
+                    {switchDim ? '2D表示' : '3D化'}
+                </button>
             </details>
         </div>
     </>

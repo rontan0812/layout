@@ -115,6 +115,8 @@ export default function App() {
         })
     }
 
+    const [switchDim, setSwitchDim] = useState(false)
+
 
 
     
@@ -135,9 +137,11 @@ export default function App() {
                 making={isMakingRoom}
                 initialWidth={roomWidth}
                 initialHeight={roomHeight}
+                switchDim={switchDim}
+                onSwitchDim={setSwitchDim}
             />
             {roomVisible ? (
-                <Room width={roomWidth} height={roomHeight} furnitureList={furnitureList} selectedIndex={selectedIndex} onSelectFurniture={handleSelectFurniture} />
+                <Room width={roomWidth} height={roomHeight} furnitureList={furnitureList} selectedIndex={selectedIndex} onSelectFurniture={handleSelectFurniture} switchDim={switchDim} />
             ) : (
                 <div className="room" />
             )}

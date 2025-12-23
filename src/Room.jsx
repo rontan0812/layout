@@ -2,7 +2,7 @@ import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useRef } from 'react'
 
-export default function Room({ width = 10, height = 10, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {} }) {
+export default function Room({ width = 10, height = 10, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, switchDim = false }) {
     const aspect = (height === 0) ? 1 : (width / height)
 
     const longSide = 5
@@ -19,7 +19,7 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
     const SELECTED_COLOR = '#ff0000'
 
     return (
-        <div className="room">
+        <div className="room" style={{ background: switchDim ? '#1a1a2e' : '#ffffff' }}>
                 <Canvas style={{ width: '100%', height: '100%' }}>
                 <ambientLight intensity={0.6} />
                 <directionalLight position={[5, 5, 5]} intensity={0.8} />
