@@ -15,6 +15,7 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
         planeHeight = longSide
         planeWidth = longSide * aspect
     }
+    const roomHeight = 2.4 //一般的な部屋の高さ(m)
 
     const roomGroup = useRef()
     const SELECTED_COLOR = '#ff0000'
@@ -31,15 +32,15 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
         return null
     }
 
-    const wall3DMesh = (position, rotation) => {
+    const wall3DMesh = (size, position, rotation) => {
         return (
             <group position={position} rotation={rotation}>
                 <mesh renderOrder={0}>
-                    <planeGeometry args={[planeWidth, planeHeight]} />
+                    <planeGeometry args={size} />
                     <meshBasicMaterial color="#ffffff" side={THREE.DoubleSide} />
                 </mesh>
                 <lineSegments renderOrder={1}>
-                    <edgesGeometry args={[new THREE.PlaneGeometry(planeWidth, planeHeight)]} />
+                    <edgesGeometry args={[new THREE.PlaneGeometry(...size)]} />
                     <lineBasicMaterial color="#ff0000" depthTest={false} />
                 </lineSegments>
             </group>
@@ -54,9 +55,9 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                     <CameraController />
                     <ambientLight intensity={0.8} />
                     <directionalLight position={[5, 5, 5]} intensity={0.6} />
-                    {wall3DMesh([0, 0, -planeHeight / 2], [0, 0, 0])}
-                    {wall3DMesh([-planeWidth / 2, 0, 0], [0, Math.PI / 2, 0])}
-                    {wall3DMesh([0, -planeHeight / 2, 0], [Math.PI / 2, 0, 0])}
+                    {wall3DMesh([planeWidth, roomHeight], [0, 0, -planeHeight / 2], [0, 0, 0])}
+                    {wall3DMesh([planeHeight, roomHeight], [-planeWidth / 2, 0, 0], [0, Math.PI / 2, 0])}
+                    {wall3DMesh([planeWidth, planeHeight], [0, -roomHeight / 2, 0], [-Math.PI / 2, 0, 0])}
                 </Canvas>
             ) : (
                 <Canvas style={{ width: '100%', height: '100%' }}>
