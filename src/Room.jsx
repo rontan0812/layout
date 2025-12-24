@@ -1,6 +1,6 @@
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { PerspectiveCamera } from '@react-three/drei'
 
 export default function Room({ width = 10, height = 10, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, switchDim = false }) {
@@ -19,20 +19,48 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
     const roomGroup = useRef()
     const SELECTED_COLOR = '#ff0000'
 
+    const CameraController = () => {
+        const { camera } = useThree()
+        
+        useEffect(() => {
+            camera.position.z = 10
+            camera.lookAt(0, 0, 0)
+            camera.updateProjectionMatrix()
+        })
+        
+        return null
+    }
+
+    const wall3DMesh = (position, rotation) => {
+        return (
+            <group position={position} rotation={rotation}>
+                <mesh renderOrder={0}>
+                    <planeGeometry args={[planeWidth, planeHeight]} />
+                    <meshBasicMaterial color="#ffffff" side={THREE.DoubleSide} />
+                </mesh>
+                <lineSegments renderOrder={1}>
+                    <edgesGeometry args={[new THREE.PlaneGeometry(planeWidth, planeHeight)]} />
+                    <lineBasicMaterial color="#ff0000" depthTest={false} />
+                </lineSegments>
+            </group>
+        )
+    }
+
     return (
         <div className="room">
             {switchDim ? (
                 <Canvas style={{ width: '100%', height: '100%', background: '#ffffcc' }}>
-                    <PerspectiveCamera makeDefault position={[0, 8, 15]} fov={50} />
+                    <PerspectiveCamera makeDefault position={[10, 10, 10]} fov={50} />
+                    <CameraController />
                     <ambientLight intensity={0.8} />
                     <directionalLight position={[5, 5, 5]} intensity={0.6} />
-                    <mesh position={[0,0,0]}>
-                        <planeGeometry args={[planeWidth, planeHeight]} />
-                        <meshStandardMaterial color="#ff0000" side={THREE.DoubleSide} />
-                    </mesh>
+                    {wall3DMesh([0, 0, -planeHeight / 2], [0, 0, 0])}
+                    {wall3DMesh([-planeWidth / 2, 0, 0], [0, Math.PI / 2, 0])}
+                    {wall3DMesh([0, -planeHeight / 2, 0], [Math.PI / 2, 0, 0])}
                 </Canvas>
             ) : (
                 <Canvas style={{ width: '100%', height: '100%' }}>
+                    <PerspectiveCamera makeDefault position={[0, 0, 10]} fov={50} />
                     <ambientLight intensity={0.6} />
                     <directionalLight position={[5, 5, 5]} intensity={0.8} />
 
