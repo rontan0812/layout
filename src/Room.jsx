@@ -79,8 +79,8 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
     return (
         <div className="room">
             {switchDim ? (
-                <Canvas style={{ width: '100%', height: '100%', background: '#ffffcc' }}>
-                    <PerspectiveCamera makeDefault position={[10, 10, 10]} fov={50} />
+                <Canvas className="canvas-3d">
+                    <PerspectiveCamera makeDefault position={[10, 10, 10]} fov={40} />
                     <CameraController is3D={true} />
                     <ambientLight intensity={0.8} />
                     <directionalLight position={[5, 5, 5]} intensity={0.6} />
@@ -93,7 +93,7 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                     })}
                 </Canvas>
             ) : (
-                <Canvas style={{ width: '100%', height: '100%' }}>
+                <Canvas className="canvas-2d">
                     <PerspectiveCamera makeDefault position={[0, 0, 10]} fov={50} />
                     <CameraController is3D={false} />
                     <ambientLight intensity={0.6} />

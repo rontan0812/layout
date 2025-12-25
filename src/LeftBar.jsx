@@ -156,7 +156,7 @@ export default function LeftBar(props) {
                         id="heightInput"
                     />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 12 }}>
+                <div className="button-group">
                     {making ? (
                         <>
                             <button id="updateRoomButton" onClick={handleUpdateRoom}>修正を保存</button>
@@ -196,20 +196,20 @@ export default function LeftBar(props) {
                     <p>Y ：</p>
                     <input type="number" min="0" max="100" value={fY} onChange={e => setFY(e.target.value)} />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 12 }}>
+                <div className="button-group">
                     <button id="addFurnitureButton" onClick={handleAddFurniture}>家具を追加</button>
-                    <button id="removeFurnitureButton" onClick={handleRemoveFurniture} style={{ background:'#f66', color:'#fff' }}>全削除</button>
+                    <button id="removeFurnitureButton" onClick={handleRemoveFurniture} className="button-danger">全削除</button>
                 </div>
                 {selectedIndex != null && (
-                    <div style={{ marginTop: 12 }}>
+                    <div className="selected-furniture">
                         <h4>選択中の家具 (#{selectedIndex})</h4>
-                        <div className="input_flex" style={{ gap: 8 }}>
+                        <div className="selected-furniture input-row">
                             <p>X (%)</p>
                             <input type="number" min="0" max="100" value={selX} onChange={e => setSelX(e.target.value)} onBlur={() => updateSelected()} />
                             <p>Y (%)</p>
                             <input type="number" min="0" max="100" value={selY} onChange={e => setSelY(e.target.value)} onBlur={() => updateSelected()} />
                         </div>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <div className="selected-furniture movement-buttons">
                             <button onClick={() => moveSelected(-0.01, 0)}>左</button>
                             <button onClick={() => moveSelected(0.01, 0)}>右</button>
                             <button onClick={() => moveSelected(0, -0.01)}>下</button>
@@ -218,13 +218,13 @@ export default function LeftBar(props) {
                     </div>
                 )}
                 {Array.isArray(furnitureList) && furnitureList.length > 0 && (
-                    <div style={{ marginTop: 12 }}>
+                    <div className="furniture-list">
                         <h4>配置済み家具</h4>
                         <ul>
                             {furnitureList.map((it, idx) => (
-                                <li key={idx} style={{ marginBottom: 6 }}>
+                                <li key={idx}>
                                     <strong>{it.type}</strong> — X:{Math.round((it.x||0)*100)}% Y:{Math.round((it.y||0)*100)}% W:{Math.round((it.w||0)*100)}% H:{Math.round((it.h||0)*100)}%
-                                    <button style={{ marginLeft: 8 }} onClick={() => { if (typeof onRemoveFurniture === 'function') onRemoveFurniture(idx) }}>削除</button>
+                                    <button onClick={() => { if (typeof onRemoveFurniture === 'function') onRemoveFurniture(idx) }}>削除</button>
                                 </li>
                             ))}
                         </ul>
@@ -233,17 +233,15 @@ export default function LeftBar(props) {
             </details>
             <details className="leftbarContents reset">
                 <summary className="summary">リセット</summary>
-                <button id="resetButton" onClick={handleDeleteRoom} style={{ background:'#f33', color:'#fff', width:'100%' }}>リセット</button>             
+                <button id="resetButton" onClick={handleDeleteRoom} className="button-full-width">リセット</button>             
             </details>
             <details className="leftbarContents">
                 <summary className="summary">表示</summary>
                 <button onClick={() => { 
-                    console.log('Button clicked, current switchDim:', switchDim);
                     if (typeof onSwitchDim === 'function') {
                         onSwitchDim(!switchDim);
-                        console.log('Switched to:', !switchDim);
                     }
-                }} style={{ background: switchDim ? '#33f' : '#999', color:'#fff', width:'100%' }}>
+                }} className={`button-3d ${switchDim ? 'active' : 'inactive'}`}>
                     {switchDim ? '2D表示' : '3D化'}
                 </button>
             </details>

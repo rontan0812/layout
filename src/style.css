@@ -61,3 +61,97 @@ button{
     padding: 12px;
     overflow: hidden;
 }
+.makeRoom{
+    /* details[open].makeRoom styling */
+}
+
+.furniture{
+    /* details[open].furniture styling */
+}
+
+.reset{
+    /* details[open].reset styling */
+}
+
+.button-group{
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.button-full-width{
+    width: 100%;
+    background: #f33;
+    color: #fff;
+}
+
+.button-danger{
+    background: #f66;
+    color: #fff;
+}
+
+.button-3d{
+    width: 100%;
+    color: #fff;
+}
+
+.button-3d.active{
+    background: #33f;
+}
+
+.button-3d.inactive{
+    background: #999;
+}
+
+.selected-furniture{
+    margin-top: 12px;
+}
+
+.selected-furniture h4{
+    margin: 0 0 12px 0;
+}
+
+.selected-furniture .input-row{
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.selected-furniture .movement-buttons{
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.furniture-list{
+    margin-top: 12px;
+}
+
+.furniture-list h4{
+    margin: 0 0 12px 0;
+}
+
+.furniture-list ul{
+    margin: 0;
+    padding-left: 20px;
+}
+
+.furniture-list li{
+    margin-bottom: 6px;
+}
+
+.furniture-list button{
+    margin-left: 8px;
+}
+
+.canvas-3d{
+    width: 100%;
+    height: 100%;
+    background: #ffffcc;
+}
+
+.canvas-2d{
+    width: 100%;
+    height: 100%;
+}
