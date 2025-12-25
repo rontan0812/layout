@@ -52,6 +52,29 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
         )
     }
 
+    const furniture3DMesh = (furniture, index) => {
+        const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5' }
+        const color = colorMap[furniture.type] || '#999'
+        const posX = (furniture.x + 0.5) * planeWidth
+        const posZ = (0.5 - furniture.y) * planeHeight
+        const rot = furniture.r || 0
+        const width = (furniture.w || 0.1) * planeWidth
+        const depth = (furniture.h || 0.1) * planeHeight
+        const height = (furniture.t || 0.1)
+        const posY = height / 2
+        return (
+            <group key={index} position={[posX, posY, posZ]} rotation={[0, rot, 0]} onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(index); }}>
+                <lineSegments renderOrder={3}>
+                    <edgesGeometry args={[new THREE.BoxGeometry(width, height, depth)]} />
+                    <lineBasicMaterial color="#ffffff" depthTest={false} />
+                </lineSegments>
+                <mesh renderOrder={2} scale={[width, height, depth]}>
+                    <boxGeometry args={[1, 1, 1]} />
+                    <meshStandardMaterial color={selectedIndex === index ? SELECTED_COLOR : color} />
+                </mesh>
+            </group>
+        )
+    }
 
     return (
         <div className="room">
@@ -66,24 +89,7 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                     {wall3DMesh([planeWidth, planeHeight], [planeWidth / 2, 0, planeHeight / 2], [-Math.PI / 2, 0, 0])}
 
                     {Array.isArray(furnitureList) && furnitureList.map((f, i) => {
-                        const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5' }
-                        const color = colorMap[f.type] || '#999'
-                        const posX = (f.x + 0.5) * planeWidth
-                        const posZ = (0.5 - f.y) * planeHeight
-                        const rot = f.r || 0
-                        const width = (f.w || 0.1) * planeWidth
-                        const depth = (f.h || 0.1) * planeHeight
-                        const height = (f.t || 0.1)
-                        const posY = height / 2
-
-                        return (
-                            <group key={i} position={[posX, posY, posZ]} rotation={[0, rot, 0]} onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(i); }}>
-                                <mesh renderOrder={2} scale={[width, height, depth]}>
-                                    <boxGeometry args={[1, 1, 1]} />
-                                    <meshStandardMaterial color={selectedIndex === i ? SELECTED_COLOR : color} />
-                                </mesh>
-                            </group>
-                        )
+                        return furniture3DMesh(f, i)
                     })}
                 </Canvas>
             ) : (
