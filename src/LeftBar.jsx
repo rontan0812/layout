@@ -61,6 +61,7 @@ export default function LeftBar(props) {
         const height = parseInt(heightInput, 10) || 0;
 
         if (typeof onCreate === "function") onCreate(width, height);
+        if (typeof onClearFurniture === "function") onClearFurniture();
     }
 
     function handleDeleteRoom() {
@@ -88,6 +89,7 @@ export default function LeftBar(props) {
             y: 0.5 - (ad_fy || 0) / height,
             w: (parseFloat(fW) || 0) / width,
             h: (parseFloat(fH) || 0) / height,
+            t: (parseFloat(fT) || 0) / 2.4,
             r: 0,
         }
         if (typeof onAddFurniture === 'function') onAddFurniture(furniture)

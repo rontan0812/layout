@@ -25,8 +25,8 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
         
         useEffect(() => {
             if (is3D) {
-                camera.position.z = 10
-                camera.lookAt(0, 0, 0)
+                camera.position.set(10, 10, 10)
+                camera.lookAt(planeWidth / 2, 0, planeHeight / 2)
             } else {
                 camera.position.set(0, 0, 10)
                 camera.lookAt(0, 0, 0)
@@ -52,6 +52,7 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
         )
     }
 
+
     return (
         <div className="room">
             {switchDim ? (
@@ -60,23 +61,23 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                     <CameraController is3D={true} />
                     <ambientLight intensity={0.8} />
                     <directionalLight position={[5, 5, 5]} intensity={0.6} />
-                    {wall3DMesh([planeWidth, roomHeight], [0, 0, -planeHeight / 2], [0, 0, 0])}
-                    {wall3DMesh([planeHeight, roomHeight], [-planeWidth / 2, 0, 0], [0, Math.PI / 2, 0])}
-                    {wall3DMesh([planeWidth, planeHeight], [0, -roomHeight / 2, 0], [-Math.PI / 2, 0, 0])}
+                    {wall3DMesh([planeWidth, roomHeight], [planeWidth / 2, roomHeight / 2, 0], [0, 0, 0])}
+                    {wall3DMesh([planeHeight, roomHeight], [0, roomHeight / 2, planeHeight / 2], [0, Math.PI / 2, 0])}
+                    {wall3DMesh([planeWidth, planeHeight], [planeWidth / 2, 0, planeHeight / 2], [-Math.PI / 2, 0, 0])}
 
                     {Array.isArray(furnitureList) && furnitureList.map((f, i) => {
                         const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5' }
                         const color = colorMap[f.type] || '#999'
-                        const posX = (f.x || 0) * planeWidth
-                        const posZ = (f.y || 0) * planeHeight
+                        const posX = (f.x + 0.5) * planeWidth
+                        const posZ = (0.5 - f.y) * planeHeight
                         const rot = f.r || 0
                         const width = (f.w || 0.1) * planeWidth
                         const depth = (f.h || 0.1) * planeHeight
-                        const height = (f.T || 0.1)
-                        const posY = -roomHeight / 2 + height / 2
+                        const height = (f.t || 0.1)
+                        const posY = height / 2
 
                         return (
-                            <group key={i} position={[posX, posY, posZ]} rotation={[0, -rot, 0]} onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(i); }}>
+                            <group key={i} position={[posX, posY, posZ]} rotation={[0, rot, 0]} onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(i); }}>
                                 <mesh renderOrder={2} scale={[width, height, depth]}>
                                     <boxGeometry args={[1, 1, 1]} />
                                     <meshStandardMaterial color={selectedIndex === i ? SELECTED_COLOR : color} />
