@@ -16,10 +16,13 @@ export default function LeftBar(props) {
         onSelectFurniture = null,
         onUpdateFurniture = null,
         switchDim = false,
-        onSwitchDim = null
+        onSwitchDim = null,
+        onUpdateWallColor = null,
+        initialWallColor = '#ffffff'
     } = props;
     const [widthInput, setWidthInput] = useState(initialWidth);
     const [heightInput, setHeightInput] = useState(initialHeight);
+    const [wallColor, setWallColor] = useState(initialWallColor);
 
     const [fType, setFType] = useState('sofa')
     const [fX, setFX] = useState(5)
@@ -95,7 +98,12 @@ export default function LeftBar(props) {
         if (typeof onAddFurniture === 'function') onAddFurniture(furniture)
     }
 
+    function handleFixFurniture() {
+        if (typeof onUpdateWallColor === "function") onUpdateWallColor(wallColor);
+    }
+
     function handleRemoveFurniture() {
+
         if (typeof onClearFurniture === 'function') onClearFurniture()
     }
 
@@ -221,19 +229,46 @@ export default function LeftBar(props) {
                     <div className="furniture-list">
                         <h4>配置済み家具</h4>
                         <ul>
-                            {furnitureList.map((it, idx) => (
-                                <li key={idx}>
-                                    <strong>{it.type}</strong> — X:{Math.round((it.x||0)*100)}% Y:{Math.round((it.y||0)*100)}% W:{Math.round((it.w||0)*100)}% H:{Math.round((it.h||0)*100)}%
-                                    <button onClick={() => { if (typeof onRemoveFurniture === 'function') onRemoveFurniture(idx) }}>削除</button>
-                                </li>
-                            ))}
+                            {furnitureList.map((it, idx) => {
+                                const width = parseFloat(widthInput)
+                                const height = parseFloat(heightInput)
+                                const realX = ((it.x || 0) + 0.5) * width
+                                const realY = (0.5 - (it.y || 0)) * height
+                                const realW = (it.w || 0) * width
+                                const realH = (it.h || 0) * height
+                                const realT = (it.t || 0) * 2.4
+                                return (
+                                    <li key={idx}>
+                                        <strong>{it.type}</strong> — X:{realX.toFixed(2)}m Y:{realY.toFixed(2)}m W:{realW.toFixed(2)}m H:{realH.toFixed(2)}m T:{realT.toFixed(2)}m
+                                        <button onClick={() => { if (typeof onRemoveFurniture === 'function') onRemoveFurniture(idx) }}>削除</button>
+                                    </li>
+                                )
+                            })}
                         </ul>
                     </div>
                 )}
             </details>
+            <details className="leftbarContents fixFurniture">
+                <summary className="summary">家具を修正</summary>
+                {making && (
+                    <div className="input_flex">
+                        <p>壁の色：</p>
+                        <input
+                            type="color"
+                            value={wallColor}
+                            onChange={(e) => {
+                                setWallColor(e.target.value);
+                                if (typeof onUpdateWallColor === "function") onUpdateWallColor(e.target.value);
+                            }}
+                            id="wallColorInput"
+                        />
+                    </div>
+                )}
+                <button id="fixFurnitureButton" onClick={handleFixFurniture}>修正</button>
+            </details>
             <details className="leftbarContents reset">
                 <summary className="summary">リセット</summary>
-                <button id="resetButton" onClick={handleDeleteRoom} className="button-full-width">リセット</button>             
+                <button id="resetButton" onClick={handleDeleteRoom} className="button-reset">リセット</button>             
             </details>
             <details className="leftbarContents">
                 <summary className="summary">表示</summary>

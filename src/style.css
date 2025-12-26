@@ -48,6 +48,7 @@ button{
 
 .summary{
     cursor: pointer;
+    margin-bottom: 10px;
 }
 
 .input_flex{
@@ -80,10 +81,11 @@ button{
     margin-top: 12px;
 }
 
-.button-full-width{
+.button-reset{
     width: 100%;
     background: #f33;
     color: #fff;
+    margin-top: 10px;
 }
 
 .button-danger{
@@ -94,6 +96,7 @@ button{
 .button-3d{
     width: 100%;
     color: #fff;
+    margin-top: 10px;
 }
 
 .button-3d.active{

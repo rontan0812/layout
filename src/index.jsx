@@ -117,6 +117,18 @@ export default function App() {
 
     const [switchDim, setSwitchDim] = useState(false)
 
+    const [wallColor, setWallColor] = useState(() => {
+        const v = localStorage.getItem('wallColor')
+        return v || '#ffffff'
+    })
+
+    const handleUpdateWallColor = (color) => {
+        setWallColor(color)
+        try {
+            localStorage.setItem('wallColor', color)
+        } catch (e) {}
+    }
+
 
 
     
@@ -139,9 +151,11 @@ export default function App() {
                 initialHeight={roomHeight}
                 switchDim={switchDim}
                 onSwitchDim={setSwitchDim}
+                onUpdateWallColor={handleUpdateWallColor}
+                initialWallColor={wallColor}
             />
             {roomVisible ? (
-                <Room width={roomWidth} height={roomHeight} furnitureList={furnitureList} selectedIndex={selectedIndex} onSelectFurniture={handleSelectFurniture} switchDim={switchDim} />
+                <Room width={roomWidth} height={roomHeight} furnitureList={furnitureList} selectedIndex={selectedIndex} onSelectFurniture={handleSelectFurniture} switchDim={switchDim} wallColor={wallColor} />
             ) : (
                 <div className="room" />
             )}

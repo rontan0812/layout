@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { useRef, useEffect } from 'react'
 import { PerspectiveCamera } from '@react-three/drei'
 
-export default function Room({ width = 10, height = 10, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, switchDim = false }) {
+export default function Room({ width = 10, height = 10, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, switchDim = false, wallColor = '#ffffff' }) {
     const aspect = (height === 0) ? 1 : (width / height)
 
     const longSide = 7
@@ -42,7 +42,7 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
             <group position={position} rotation={rotation}>
                 <mesh renderOrder={0}>
                     <planeGeometry args={size} />
-                    <meshBasicMaterial color="#ffffff" side={THREE.DoubleSide} />
+                    <meshBasicMaterial color={wallColor} side={THREE.DoubleSide} toneMapped={false} />
                 </mesh>
                 <lineSegments renderOrder={1}>
                     <edgesGeometry args={[new THREE.PlaneGeometry(...size)]} />
