@@ -32,6 +32,8 @@ export default function App() {
         return Boolean(w && h)
     })
 
+    const [makeMode, setMakeMode] = useState(false);
+
     const handleCreate = (width, height) => {
         setRoomWidth(width)
         setRoomHeight(height)
@@ -45,6 +47,10 @@ export default function App() {
 
     const handleStart = (making) => {
         setIsMakingRoom(Boolean(making))
+    }
+
+    const handleMode = (mode) => {
+        setMakeMode(!mode);
     }
 
     const handleDelete = () => {
@@ -117,6 +123,18 @@ export default function App() {
 
     const [switchDim, setSwitchDim] = useState(false)
 
+    const [wallColor, setWallColor] = useState(() => {
+        const v = localStorage.getItem('wallColor')
+        return v || '#ffffff'
+    })
+
+    const handleUpdateWallColor = (color) => {
+        setWallColor(color)
+        try {
+            localStorage.setItem('wallColor', color)
+        } catch (e) {}
+    }
+
 
 
     
@@ -126,6 +144,7 @@ export default function App() {
             <LeftBar
                 onCreate={handleCreate}
                 onStart={handleStart}
+                onMode={handleMode}
                 onDelete={handleDelete}
                 onAddFurniture={handleAddFurniture}
                 onRemoveFurniture={handleRemoveFurniture}
@@ -135,13 +154,16 @@ export default function App() {
                 onSelectFurniture={handleSelectFurniture}
                 furnitureList={furnitureList}
                 making={isMakingRoom}
+                isMakingMode={makeMode}
                 initialWidth={roomWidth}
                 initialHeight={roomHeight}
                 switchDim={switchDim}
                 onSwitchDim={setSwitchDim}
+                onUpdateWallColor={handleUpdateWallColor}
+                initialWallColor={wallColor}
             />
             {roomVisible ? (
-                <Room width={roomWidth} height={roomHeight} furnitureList={furnitureList} selectedIndex={selectedIndex} onSelectFurniture={handleSelectFurniture} switchDim={switchDim} />
+                <Room width={roomWidth} height={roomHeight} furnitureList={furnitureList} selectedIndex={selectedIndex} onSelectFurniture={handleSelectFurniture} switchDim={switchDim} wallColor={wallColor} />
             ) : (
                 <div className="room" />
             )}
