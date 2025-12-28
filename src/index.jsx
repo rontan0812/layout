@@ -162,8 +162,8 @@ export default function App() {
                 onUpdateWallColor={handleUpdateWallColor}
                 initialWallColor={wallColor}
             />
-            {roomVisible ? (
-                <Room width={roomWidth} height={roomHeight} furnitureList={furnitureList} selectedIndex={selectedIndex} onSelectFurniture={handleSelectFurniture} switchDim={switchDim} wallColor={wallColor} />
+            {roomVisible || makeMode ? (
+                <Room width={roomWidth} height={roomHeight} furnitureList={furnitureList} selectedIndex={selectedIndex} onSelectFurniture={handleSelectFurniture} switchDim={switchDim} wallColor={wallColor} isMakingMode={makeMode} />
             ) : (
                 <div className="room" />
             )}

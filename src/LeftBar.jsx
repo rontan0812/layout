@@ -25,6 +25,7 @@ export default function LeftBar(props) {
     const [widthInput, setWidthInput] = useState(initialWidth);
     const [heightInput, setHeightInput] = useState(initialHeight);
     const [wallColor, setWallColor] = useState(initialWallColor);
+    const [createMode, setCreateMode] = useState('numeric');
 
     const [fType, setFType] = useState('sofa')
     const [fX, setFX] = useState(5)
@@ -59,6 +60,9 @@ export default function LeftBar(props) {
 
         if (typeof onCreate === "function") onCreate(width, height);
         if (typeof onStart === "function") onStart(true);
+        if (createMode === 'drawing' && isMakingMode) {
+            if (typeof onMode === "function") onMode(true);
+        }
     }
 
     function handleUpdateRoom() {
@@ -170,39 +174,58 @@ export default function LeftBar(props) {
             <details className="leftbarContents makeRoom">
                 <summary className="summary">{making ? '間取りを修正' : '間取りを作成'}</summary>
                 <div className="input_flex">
-                    <p>横：</p>
-                    <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={widthInput}
-                        onChange={(e) => setWidthInput(e.target.value)}
-                        id="widthInput"
-                    />
+                    <p>作成方法：</p>
+                    <select value={createMode} onChange={(e) => {
+                        const val = e.target.value;
+                        setCreateMode(val);
+                        if (val === 'drawing') {
+                            if (!isMakingMode && typeof onMode === 'function') onMode(false);
+                        } else {
+                            if (isMakingMode && typeof onMode === 'function') onMode(true);
+                        }
+                    }} disabled={making}>
+                        <option value="numeric">数値入力</option>
+                        <option value="drawing">図で作成</option>
+                    </select>
                 </div>
-                <div className="input_flex">
-                    <p>縦：</p>
-                    <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={heightInput}
-                        onChange={(e) => setHeightInput(e.target.value)}
-                        id="heightInput"
-                    />
-                </div>
+                {createMode === 'numeric' && (
+                    <>
+                        <div className="input_flex">
+                            <p>横：</p>
+                            <input
+                                type="number"
+                                min="1"
+                                max="100"
+                                value={widthInput}
+                                onChange={(e) => setWidthInput(e.target.value)}
+                                id="widthInput"
+                            />
+                        </div>
+                        <div className="input_flex">
+                            <p>縦：</p>
+                            <input
+                                type="number"
+                                min="1"
+                                max="100"
+                                value={heightInput}
+                                onChange={(e) => setHeightInput(e.target.value)}
+                                id="heightInput"
+                            />
+                        </div>
+                    </>
+                )}
                 <div className="button-group">
                     {making ? (
                         <>
                             <button id="updateRoomButton" onClick={handleUpdateRoom}>修正を保存</button>
+                            <button id="makeRoomModeChangeButton" onClick={changeToMakeRoom}>{isMakingMode ? "戻る" : "作成モード"}</button>
                         </>
                     ) : (
                         <button id="makeRoomButton" onClick={handleMakeRoom}>作成</button>
                     )}
-                    <button id="makeRoomModeChangeButton" onClick={changeToMakeRoom}>{isMakingMode ? "戻る" : "作成モード"}</button> 
                 </div>
             </details>
-            {making && (
+            {!isMakingMode && making && (
                 <div>
                 <details className="leftbarContents furniture">
                     <summary className="summary">家具を配置</summary>

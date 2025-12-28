@@ -3,8 +3,16 @@ import * as THREE from 'three'
 import { useRef, useEffect } from 'react'
 import { PerspectiveCamera } from '@react-three/drei'
 
-export default function Room({ width = 10, height = 10, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, switchDim = false, wallColor = '#ffffff' }) {
+export default function Room({ width = 10, height = 10, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, switchDim = false, wallColor = '#ffffff', isMakingMode = false }) {
     const aspect = (height === 0) ? 1 : (width / height)
+
+    if (isMakingMode) {
+        return (
+            <div className="room" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0', color: '#333' }}>
+                <h2>作成モード</h2>
+            </div>
+        )
+    }
 
     const longSide = 7
     let planeWidth, planeHeight
