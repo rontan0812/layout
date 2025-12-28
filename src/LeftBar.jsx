@@ -6,7 +6,9 @@ export default function LeftBar(props) {
         initialWidth = 10,
         initialHeight = 10,
         onStart,
+        onMode,
         making = false,
+        isMakingMode = false,
         onDelete,
         onAddFurniture,
         onRemoveFurniture,
@@ -67,6 +69,10 @@ export default function LeftBar(props) {
         if (typeof onClearFurniture === "function") onClearFurniture();
     }
 
+    function changeToMakeRoom() {
+        if (typeof onMode === "function") onMode(isMakingMode);
+    }
+
     function handleDeleteRoom() {
         try {
             localStorage.removeItem('roomWidth');
@@ -114,14 +120,31 @@ export default function LeftBar(props) {
         if (selectedIndex == null || !Array.isArray(furnitureList)) return
         const f = furnitureList[selectedIndex]
         if (!f) return
-        setSelX(Math.round((f.x || 0) * 100))
-        setSelY(Math.round((f.y || 0) * 100))
-    }, [selectedIndex, furnitureList])
+        
+        const width = parseFloat(widthInput) || 10
+        const height = parseFloat(heightInput) || 10
+
+        const realX = ((f.x || 0) + 0.5) * width
+        const realY = (0.5 - (f.y || 0)) * height
+
+        setSelX(realX.toFixed(2))
+        setSelY(realY.toFixed(2))
+    }, [selectedIndex, furnitureList, widthInput, heightInput])
 
     function updateSelected(newX, newY) {
         if (selectedIndex == null) return
-        const x = (typeof newX === 'number') ? newX / 100 : (parseFloat(selX) || 0) / 100
-        const y = (typeof newY === 'number') ? newY / 100 : (parseFloat(selY) || 0) / 100
+        
+        const width = parseFloat(widthInput) || 10
+        const height = parseFloat(heightInput) || 10
+
+        const inputX = (typeof newX === 'number') ? newX : parseFloat(selX)
+        const inputY = (typeof newY === 'number') ? newY : parseFloat(selY)
+
+        if (isNaN(inputX) || isNaN(inputY)) return
+
+        const x = (inputX / width) - 0.5
+        const y = 0.5 - (inputY / height)
+
         if (typeof onUpdateFurniture === 'function') onUpdateFurniture(selectedIndex, { x, y })
     }
 
@@ -131,10 +154,14 @@ export default function LeftBar(props) {
         if (!f) return
         const curX = (f.x || 0)
         const curY = (f.y || 0)
-        const nx = Math.max(0, Math.min(1, curX + dx))
-        const ny = Math.max(0, Math.min(1, curY + dy))
-        setSelX(Math.round(nx * 100))
-        setSelY(Math.round(ny * 100))
+        const nx = Math.max(-0.5, Math.min(0.5, curX + dx))
+        const ny = Math.max(-0.5, Math.min(0.5, curY + dy))
+        
+        const width = parseFloat(widthInput) || 10
+        const height = parseFloat(heightInput) || 10
+        setSelX((((nx + 0.5) * width)).toFixed(2))
+        setSelY(((0.5 - ny) * height).toFixed(2))
+
         if (typeof onUpdateFurniture === 'function') onUpdateFurniture(selectedIndex, { x: nx, y: ny })
     }
 
@@ -172,114 +199,119 @@ export default function LeftBar(props) {
                     ) : (
                         <button id="makeRoomButton" onClick={handleMakeRoom}>作成</button>
                     )}
+                    <button id="makeRoomModeChangeButton" onClick={changeToMakeRoom}>{isMakingMode ? "戻る" : "作成モード"}</button> 
                 </div>
             </details>
-            <details className="leftbarContents furniture">
-                <summary className="summary">家具を配置</summary>
-                <div className="input_flex">
-                    <p>種類：</p>
-                    <select value={fType} onChange={e => setFType(e.target.value)}>
-                        <option value="sofa">ソファ</option>
-                        <option value="table">テーブル</option>
-                        <option value="chair">チェア</option>
-                    </select>
-                </div>
-                <div className="input_flex">
-                    <p>横 ：</p>
-                    <input type="number" min="0" max="100" value={fW} onChange={e => setFW(e.target.value)} />
-                </div>
-                <div className="input_flex">
-                    <p>縦 ：</p>
-                    <input type="number" min="0" max="100" value={fH} onChange={e => setFH(e.target.value)} />
-                </div>
-                <div className="input_flex">
-                    <p>高さ：</p>
-                    <input type="number" min="0" max="100" value={fT} onChange={e => setFT(e.target.value)} />
-                </div>
-                <div className="input_flex">
-                    <p>X ：</p>
-                    <input type="number" min="0" max="100" value={fX} onChange={e => setFX(e.target.value)} />
-                </div>
-                <div className="input_flex">
-                    <p>Y ：</p>
-                    <input type="number" min="0" max="100" value={fY} onChange={e => setFY(e.target.value)} />
-                </div>
-                <div className="button-group">
-                    <button id="addFurnitureButton" onClick={handleAddFurniture}>家具を追加</button>
-                    <button id="removeFurnitureButton" onClick={handleRemoveFurniture} className="button-danger">全削除</button>
-                </div>
-                {selectedIndex != null && (
-                    <div className="selected-furniture">
-                        <h4>選択中の家具 (#{selectedIndex})</h4>
-                        <div className="selected-furniture input-row">
-                            <p>X (%)</p>
-                            <input type="number" min="0" max="100" value={selX} onChange={e => setSelX(e.target.value)} onBlur={() => updateSelected()} />
-                            <p>Y (%)</p>
-                            <input type="number" min="0" max="100" value={selY} onChange={e => setSelY(e.target.value)} onBlur={() => updateSelected()} />
-                        </div>
-                        <div className="selected-furniture movement-buttons">
-                            <button onClick={() => moveSelected(-0.01, 0)}>左</button>
-                            <button onClick={() => moveSelected(0.01, 0)}>右</button>
-                            <button onClick={() => moveSelected(0, -0.01)}>下</button>
-                            <button onClick={() => moveSelected(0, 0.01)}>上</button>
-                        </div>
-                    </div>
-                )}
-                {Array.isArray(furnitureList) && furnitureList.length > 0 && (
-                    <div className="furniture-list">
-                        <h4>配置済み家具</h4>
-                        <ul>
-                            {furnitureList.map((it, idx) => {
-                                const width = parseFloat(widthInput)
-                                const height = parseFloat(heightInput)
-                                const realX = ((it.x || 0) + 0.5) * width
-                                const realY = (0.5 - (it.y || 0)) * height
-                                const realW = (it.w || 0) * width
-                                const realH = (it.h || 0) * height
-                                const realT = (it.t || 0) * 2.4
-                                return (
-                                    <li key={idx}>
-                                        <strong>{it.type}</strong> — X:{realX.toFixed(2)}m Y:{realY.toFixed(2)}m W:{realW.toFixed(2)}m H:{realH.toFixed(2)}m T:{realT.toFixed(2)}m
-                                        <button onClick={() => { if (typeof onRemoveFurniture === 'function') onRemoveFurniture(idx) }}>削除</button>
-                                    </li>
-                                )
-                            })}
-                        </ul>
-                    </div>
-                )}
-            </details>
-            <details className="leftbarContents fixFurniture">
-                <summary className="summary">家具を修正</summary>
-                {making && (
+            {making && (
+                <div>
+                <details className="leftbarContents furniture">
+                    <summary className="summary">家具を配置</summary>
                     <div className="input_flex">
-                        <p>壁の色：</p>
-                        <input
-                            type="color"
-                            value={wallColor}
-                            onChange={(e) => {
-                                setWallColor(e.target.value);
-                                if (typeof onUpdateWallColor === "function") onUpdateWallColor(e.target.value);
-                            }}
-                            id="wallColorInput"
-                        />
+                        <p>家具：</p>
+                        <select value={fType} onChange={e => setFType(e.target.value)}>
+                            <option value="sofa">ソファ</option>
+                            <option value="table">テーブル</option>
+                            <option value="chair">チェア</option>
+                        </select>
                     </div>
-                )}
-                <button id="fixFurnitureButton" onClick={handleFixFurniture}>修正</button>
-            </details>
-            <details className="leftbarContents reset">
-                <summary className="summary">リセット</summary>
-                <button id="resetButton" onClick={handleDeleteRoom} className="button-reset">リセット</button>             
-            </details>
-            <details className="leftbarContents">
-                <summary className="summary">表示</summary>
-                <button onClick={() => { 
-                    if (typeof onSwitchDim === 'function') {
-                        onSwitchDim(!switchDim);
-                    }
-                }} className={`button-3d ${switchDim ? 'active' : 'inactive'}`}>
-                    {switchDim ? '2D表示' : '3D化'}
-                </button>
-            </details>
+                    <div className="input_flex">
+                        <p>横 ：</p>
+                        <input type="number" min="0" max="100" value={fW} onChange={e => setFW(e.target.value)} />
+                    </div>
+                    <div className="input_flex">
+                        <p>縦 ：</p>
+                        <input type="number" min="0" max="100" value={fH} onChange={e => setFH(e.target.value)} />
+                    </div>
+                    <div className="input_flex">
+                        <p>高さ：</p>
+                        <input type="number" min="0" max="100" value={fT} onChange={e => setFT(e.target.value)} />
+                    </div>
+                    <div className="input_flex">
+                        <p>X ：</p>
+                        <input type="number" min="0" max="100" value={fX} onChange={e => setFX(e.target.value)} />
+                    </div>
+                    <div className="input_flex">
+                        <p>Y ：</p>
+                        <input type="number" min="0" max="100" value={fY} onChange={e => setFY(e.target.value)} />
+                    </div>
+                    <div className="button-group">
+                        <button id="addFurnitureButton" onClick={handleAddFurniture}>家具を追加</button>
+                        <button id="removeFurnitureButton" onClick={handleRemoveFurniture} className="button-danger">全削除</button>
+                    </div>
+                    {selectedIndex != null && (
+                        <div className="selected-furniture">
+                            <h4>選択中の家具 (#{selectedIndex})</h4>
+                            <div className="selected-furniture input-row">
+                                <p>X (m)</p>
+                                <input type="number" min="0" max="100" value={selX} onChange={e => setSelX(e.target.value)} onBlur={() => updateSelected()} />
+                                <p>Y (m)</p>
+                                <input type="number" min="0" max="100" value={selY} onChange={e => setSelY(e.target.value)} onBlur={() => updateSelected()} />
+                            </div>
+                            <div className="selected-furniture movement-buttons">
+                                <button onClick={() => moveSelected(-0.01, 0)}>左</button>
+                                <button onClick={() => moveSelected(0.01, 0)}>右</button>
+                                <button onClick={() => moveSelected(0, -0.01)}>下</button>
+                                <button onClick={() => moveSelected(0, 0.01)}>上</button>
+                            </div>
+                        </div>
+                    )}
+                    {Array.isArray(furnitureList) && furnitureList.length > 0 && (
+                        <div className="furniture-list">
+                            <h4>配置済み家具</h4>
+                            <ul>
+                                {furnitureList.map((it, idx) => {
+                                    const width = parseFloat(widthInput)
+                                    const height = parseFloat(heightInput)
+                                    const realX = ((it.x || 0) + 0.5) * width
+                                    const realY = (0.5 - (it.y || 0)) * height
+                                    const realW = (it.w || 0) * width
+                                    const realH = (it.h || 0) * height
+                                    const realT = (it.t || 0) * 2.4
+                                    return (
+                                        <li key={idx}>
+                                            <strong>{it.type}</strong> — X:{realX.toFixed(2)}m Y:{realY.toFixed(2)}m W:{realW.toFixed(2)}m H:{realH.toFixed(2)}m T:{realT.toFixed(2)}m
+                                            <button onClick={() => { if (typeof onRemoveFurniture === 'function') onRemoveFurniture(idx) }}>削除</button>
+                                        </li>
+                                    )
+                                })}
+                            </ul>
+                        </div>
+                    )}
+                </details>
+                <details className="leftbarContents fixFurniture">
+                    <summary className="summary">家具を修正</summary>
+                    {making && (
+                        <div className="input_flex">
+                            <p>壁の色：</p>
+                            <input
+                                type="color"
+                                value={wallColor}
+                                onChange={(e) => {
+                                    setWallColor(e.target.value);
+                                    if (typeof onUpdateWallColor === "function") onUpdateWallColor(e.target.value);
+                                }}
+                                id="wallColorInput"
+                            />
+                        </div>
+                    )}
+                    <button id="fixFurnitureButton" onClick={handleFixFurniture}>修正</button>
+                </details>
+                <details className="leftbarContents reset">
+                    <summary className="summary">リセット</summary>
+                    <button id="resetButton" onClick={handleDeleteRoom} className="button-reset">リセット</button>             
+                </details>
+                <details className="leftbarContents view">
+                    <summary className="summary">表示</summary>
+                    <button onClick={() => { 
+                        if (typeof onSwitchDim === 'function') {
+                            onSwitchDim(!switchDim);
+                        }
+                    }} className={`button-3d ${switchDim ? 'active' : 'inactive'}`}>
+                        {switchDim ? '2D表示' : '3D化'}
+                    </button>
+                </details>
+                </div>
+            )}
         </div>
     </>
 }

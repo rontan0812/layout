@@ -119,6 +119,11 @@ button{
     display: flex;
     gap: 8px;
     align-items: center;
+    flex-wrap: wrap;
+}
+
+.selected-furniture .input-row input {
+    width: 60px;
 }
 
 .selected-furniture .movement-buttons{
