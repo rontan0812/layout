@@ -108,15 +108,15 @@ const FurnitureMesh = ({ type, color, selected, isOpen }) => {
         return (
             <group>
                 <ChestDrawer position={[0, -0.5 + drawerHeight/2, 0]} scale={[1, h, 1]} material={material} />
-                <ChestDrawer position={[0, 0 , isOpen ? 0.3 : 0]} scale={[1, h, 1]} material={material} />
+                
+                {/* Always render the drawer at the closed position */}
+                <ChestDrawer position={[0, 0 , 0]} scale={[1, h, 1]} material={material} />
+
+                {/* Render the open drawer if open */}
                 {isOpen && (
-                    <group position={[0, 0, 0]} scale={[1, h, 1]}>
-                        <lineSegments>
-                            <edgesGeometry args={[new THREE.BoxGeometry(1, 1, 1)]} />
-                            <lineBasicMaterial color="#ffffff" depthTest={false} opacity={0.5} transparent />
-                        </lineSegments>
-                    </group>
+                    <ChestDrawer position={[0, 0 , 0.3]} scale={[1, h, 1]} material={material} />
                 )}
+
                 <ChestDrawer position={[0, 0.5 - drawerHeight/2, 0]} scale={[1, h, 1]} material={material} />
             </group>
         )
@@ -247,6 +247,18 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                                         <planeGeometry args={[1, 1]} />
                                         <meshStandardMaterial color={selectedIndex === i ? SELECTED_COLOR : color} />
                                     </mesh>
+                                    {f.type === 'chest' && (
+                                        <group position={[0, -(f.h || 0.1) * 0.65, 0]} scale={[f.w || 0.1, (f.h || 0.1) * 0.3, 1]}>
+                                            <mesh>
+                                                <planeGeometry args={[1, 1]} />
+                                                <meshBasicMaterial color="#dddddd" opacity={0.6} transparent />
+                                            </mesh>
+                                            <lineSegments>
+                                                <edgesGeometry args={[new THREE.PlaneGeometry(1, 1)]} />
+                                                <lineBasicMaterial color="#888888" />
+                                            </lineSegments>
+                                        </group>
+                                    )}
                                 </group>
                             )
                         })}
