@@ -169,6 +169,15 @@ export default function LeftBar(props) {
         if (typeof onUpdateFurniture === 'function') onUpdateFurniture(selectedIndex, { x: nx, y: ny })
     }
 
+    function toggleChestOpen() {
+        if (selectedIndex == null) return
+        const f = furnitureList[selectedIndex]
+        if (!f) return
+        
+        const isOpen = !f.isOpen
+        if (typeof onUpdateFurniture === 'function') onUpdateFurniture(selectedIndex, { isOpen })
+    }
+
     return <>
         <div className="leftbar">
             <details className="leftbarContents makeRoom">
@@ -235,6 +244,7 @@ export default function LeftBar(props) {
                             <option value="sofa">ソファ</option>
                             <option value="table">テーブル</option>
                             <option value="chair">チェア</option>
+                            <option value="chest">タンス</option>
                         </select>
                     </div>
                     <div className="input_flex">
@@ -263,7 +273,13 @@ export default function LeftBar(props) {
                     </div>
                     {selectedIndex != null && (
                         <div className="selected-furniture">
-                            <h4>選択中の家具 (#{selectedIndex})</h4>
+                            {(furnitureList[selectedIndex] && furnitureList[selectedIndex].type === 'chest') ? (
+                                <button onClick={toggleChestOpen}>
+                                    引き出しを{furnitureList[selectedIndex].isOpen ? '閉める' : '開ける'}
+                                </button>
+                            ) : (
+                                <h4>選択中の家具 (#{selectedIndex})</h4>
+                            )}
                             <div className="selected-furniture input-row">
                                 <p>X (m)</p>
                                 <input type="number" min="0" max="100" value={selX} onChange={e => setSelX(e.target.value)} onBlur={() => updateSelected()} />

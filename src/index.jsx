@@ -10,7 +10,6 @@ const root = ReactDOM.createRoot(document.querySelector('#root'))
 
 export default function App() {
 
-    // about Room
     const [roomWidth, setRoomWidth] = useState(() => {
         const v = parseInt(localStorage.getItem('roomWidth'), 10)
         return Number.isFinite(v) ? v : 10
@@ -67,7 +66,6 @@ export default function App() {
 
 
 
-    // about Furniture
     const [furnitureList, setFurnitureList] = useState(() => {
         try {
             const raw = localStorage.getItem('furnitureList')

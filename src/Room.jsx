@@ -16,7 +16,23 @@ const MeshWithEdges = ({ position, scale, material }) => (
     </group>
 )
 
-const FurnitureMesh = ({ type, color, selected }) => {
+const ChestDrawer = ({ position, scale, material }) => (
+    <group position={position} scale={scale}>
+        <mesh>
+            <boxGeometry args={[1, 1, 1]} />
+            {material}
+        </mesh>
+    
+        <group position={[0, 0, 0.5]}>
+             <lineSegments>
+                <edgesGeometry args={[new THREE.PlaneGeometry(1, 1)]} />
+                <lineBasicMaterial color="#ffffff" depthTest={false} />
+            </lineSegments>
+        </group>
+    </group>
+)
+
+const FurnitureMesh = ({ type, color, selected, isOpen }) => {
     const material = <meshStandardMaterial color={selected ? '#ff0000' : color} />
 
     if (type === 'sofa') {
@@ -32,25 +48,21 @@ const FurnitureMesh = ({ type, color, selected }) => {
 
         return (
             <group>
-                {/* Backrest (full width, back) */}
                 <MeshWithEdges 
                     position={[0, -0.5 + backHeight/2, -0.5 + backThickness/2]} 
                     scale={[width, backHeight, backThickness]} 
                     material={material} 
                 />
-                {/* Seat (between arms, front) */}
                 <MeshWithEdges 
                     position={[0, -0.5 + seatHeight/2, -0.5 + backThickness + seatDepth/2]} 
                     scale={[seatWidth, seatHeight, seatDepth]} 
                     material={material} 
                 />
-                {/* Arm Left */}
                 <MeshWithEdges 
                     position={[-0.5 + armWidth/2, -0.5 + armHeight/2, -0.5 + backThickness + seatDepth/2]} 
                     scale={[armWidth, armHeight, seatDepth]} 
                     material={material} 
                 />
-                {/* Arm Right */}
                 <MeshWithEdges 
                     position={[0.5 - armWidth/2, -0.5 + armHeight/2, -0.5 + backThickness + seatDepth/2]} 
                     scale={[armWidth, armHeight, seatDepth]} 
@@ -63,8 +75,6 @@ const FurnitureMesh = ({ type, color, selected }) => {
         const topThick = 0.05
         const legHeight = 0.95
         const legThick = 0.1
-        // Table top at very top
-        // Legs below it
         return (
             <group>
                 <MeshWithEdges position={[0, 0.5 - topThick/2, 0]} scale={[1, topThick, 1]} material={material} />
@@ -78,19 +88,36 @@ const FurnitureMesh = ({ type, color, selected }) => {
     if (type === 'chair') {
         const seatThick = 0.05
         const seatY = -0.1
-        const legHeight = 0.4 // extends from -0.5 to -0.1
+        const legHeight = 0.4
         
         return (
             <group>
-                {/* Seat */}
                 <MeshWithEdges position={[0, -0.1 - seatThick/2, 0]} scale={[0.9, seatThick, 0.9]} material={material} />
-                {/* Back */}
                 <MeshWithEdges position={[0, -0.1 + 0.6/2, -0.4]} scale={[0.9, 0.6, 0.1]} material={material} />
-                {/* Legs */}
                 <MeshWithEdges position={[-0.4, -0.5 + 0.4/2, 0.4]} scale={[0.05, 0.4, 0.05]} material={material} />
                 <MeshWithEdges position={[0.4, -0.5 + 0.4/2, 0.4]} scale={[0.05, 0.4, 0.05]} material={material} />
                 <MeshWithEdges position={[-0.4, -0.5 + 0.4/2, -0.4]} scale={[0.05, 0.4, 0.05]} material={material} />
                 <MeshWithEdges position={[0.4, -0.5 + 0.4/2, -0.4]} scale={[0.05, 0.4, 0.05]} material={material} />
+            </group>
+        )
+    }
+    if (type === 'chest') {
+        const drawerHeight = 1.0 / 3;
+        const gap = 0.02;
+        const h = drawerHeight - gap;
+        return (
+            <group>
+                <ChestDrawer position={[0, -0.5 + drawerHeight/2, 0]} scale={[1, h, 1]} material={material} />
+                <ChestDrawer position={[0, 0 , isOpen ? 0.3 : 0]} scale={[1, h, 1]} material={material} />
+                {isOpen && (
+                    <group position={[0, 0, 0]} scale={[1, h, 1]}>
+                        <lineSegments>
+                            <edgesGeometry args={[new THREE.BoxGeometry(1, 1, 1)]} />
+                            <lineBasicMaterial color="#ffffff" depthTest={false} opacity={0.5} transparent />
+                        </lineSegments>
+                    </group>
+                )}
+                <ChestDrawer position={[0, 0.5 - drawerHeight/2, 0]} scale={[1, h, 1]} material={material} />
             </group>
         )
     }
@@ -143,7 +170,7 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
 
     const wall3DMesh = (size, position, rotation) => {
         return (
-            <group position={position} rotation={rotation}>
+            <group position={position} rotation={rotation} onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(null) }}>
                 <mesh renderOrder={0}>
                     <planeGeometry args={size} />
                     <meshBasicMaterial color={wallColor} side={THREE.DoubleSide} toneMapped={false} />
@@ -157,7 +184,7 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
     }
 
     const furniture3DMesh = (furniture, index) => {
-        const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5' }
+        const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5', chest: '#5d4037' }
         const color = colorMap[furniture.type] || '#999'
         const posX = (furniture.x + 0.5) * planeWidth
         const posZ = (0.5 - furniture.y) * planeHeight
@@ -169,7 +196,7 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
         return (
             <group key={index} position={[posX, posY, posZ]} rotation={[0, rot, 0]} onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(index); }}>
                 <group scale={[width, height, depth]}>
-                    <FurnitureMesh type={furniture.type} color={color} selected={selectedIndex === index} />
+                    <FurnitureMesh type={furniture.type} color={color} selected={selectedIndex === index} isOpen={furniture.isOpen} />
                 </group>
             </group>
         )
@@ -198,14 +225,18 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                     <ambientLight intensity={0.6} />
                     <directionalLight position={[5, 5, 5]} intensity={0.8} />
 
-                    <group ref={roomGroup} position={[0, 0, 0]} scale={[planeWidth, planeHeight, 1]} onPointerDown={() => onSelectFurniture(null)}>
+                    <group ref={roomGroup} position={[0, 0, 0]} scale={[planeWidth, planeHeight, 1]} onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(null) }}>
+                        <mesh renderOrder={-1} position={[0, 0, -0.01]}>
+                             <planeGeometry args={[1, 1]} />
+                             <meshBasicMaterial color={wallColor} toneMapped={false} />
+                        </mesh>
                         <lineSegments>
                             <edgesGeometry args={[new THREE.PlaneGeometry(1, 1)]} />
                             <lineBasicMaterial color="#000000" />
                         </lineSegments>
 
                         {Array.isArray(furnitureList) && furnitureList.map((f, i) => {
-                            const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5' }
+                            const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5', chest: '#5d4037' }
                             const color = colorMap[f.type] || '#999'
                             const posX = (f.x || 0)
                             const posY = (f.y || 0)
