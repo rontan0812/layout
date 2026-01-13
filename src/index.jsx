@@ -133,6 +133,18 @@ export default function App() {
         } catch (e) {}
     }
 
+    const [floorColor, setFloorColor] = useState(() => {
+        const v = localStorage.getItem('floorColor')
+        return v || '#ffffff'
+    })
+
+    const handleUpdateFloorColor = (color) => {
+        setFloorColor(color)
+        try {
+            localStorage.setItem('floorColor', color)
+        } catch (e) {}
+    }
+
 
 
     
@@ -159,9 +171,11 @@ export default function App() {
                 onSwitchDim={setSwitchDim}
                 onUpdateWallColor={handleUpdateWallColor}
                 initialWallColor={wallColor}
+                onUpdateFloorColor={handleUpdateFloorColor}
+                initialFloorColor={floorColor}
             />
             {roomVisible || makeMode ? (
-                <Room width={roomWidth} height={roomHeight} furnitureList={furnitureList} selectedIndex={selectedIndex} onSelectFurniture={handleSelectFurniture} switchDim={switchDim} wallColor={wallColor} isMakingMode={makeMode} />
+                <Room width={roomWidth} height={roomHeight} furnitureList={furnitureList} selectedIndex={selectedIndex} onSelectFurniture={handleSelectFurniture} switchDim={switchDim} wallColor={wallColor} floorColor={floorColor} isMakingMode={makeMode} />
             ) : (
                 <div className="room" />
             )}

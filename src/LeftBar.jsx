@@ -20,11 +20,14 @@ export default function LeftBar(props) {
         switchDim = false,
         onSwitchDim = null,
         onUpdateWallColor = null,
-        initialWallColor = '#ffffff'
+        initialWallColor = '#ffffff',
+        onUpdateFloorColor = null,
+        initialFloorColor = '#ffffff'
     } = props;
     const [widthInput, setWidthInput] = useState(initialWidth);
     const [heightInput, setHeightInput] = useState(initialHeight);
     const [wallColor, setWallColor] = useState(initialWallColor);
+    const [floorColor, setFloorColor] = useState(initialFloorColor);
     const [createMode, setCreateMode] = useState('numeric');
 
     const [fType, setFType] = useState('sofa')
@@ -110,6 +113,7 @@ export default function LeftBar(props) {
 
     function handleFixFurniture() {
         if (typeof onUpdateWallColor === "function") onUpdateWallColor(wallColor);
+        if (typeof onUpdateFloorColor === "function") onUpdateFloorColor(floorColor);
     }
 
     function handleRemoveFurniture() {
@@ -119,6 +123,7 @@ export default function LeftBar(props) {
 
     const [selX, setSelX] = useState(0)
     const [selY, setSelY] = useState(0)
+    const [selColor, setSelColor] = useState('#000000')
 
     useEffect(() => {
         if (selectedIndex == null || !Array.isArray(furnitureList)) return
@@ -133,9 +138,12 @@ export default function LeftBar(props) {
 
         setSelX(realX.toFixed(2))
         setSelY(realY.toFixed(2))
+
+        const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5', chest: '#5d4037' }
+        setSelColor(f.color || colorMap[f.type] || '#999999')
     }, [selectedIndex, furnitureList, widthInput, heightInput])
 
-    function updateSelected(newX, newY) {
+    function updateSelected(newX, newY, newColor) {
         if (selectedIndex == null) return
         
         const width = parseFloat(widthInput) || 10
@@ -143,13 +151,14 @@ export default function LeftBar(props) {
 
         const inputX = (typeof newX === 'number') ? newX : parseFloat(selX)
         const inputY = (typeof newY === 'number') ? newY : parseFloat(selY)
+        const color = (typeof newColor === 'string') ? newColor : selColor
 
         if (isNaN(inputX) || isNaN(inputY)) return
 
         const x = (inputX / width) - 0.5
         const y = 0.5 - (inputY / height)
 
-        if (typeof onUpdateFurniture === 'function') onUpdateFurniture(selectedIndex, { x, y })
+        if (typeof onUpdateFurniture === 'function') onUpdateFurniture(selectedIndex, { x, y, color })
     }
 
     function moveSelected(dx, dy) {
@@ -286,6 +295,13 @@ export default function LeftBar(props) {
                                 <p>Y (m)</p>
                                 <input type="number" min="0" max="100" value={selY} onChange={e => setSelY(e.target.value)} onBlur={() => updateSelected()} />
                             </div>
+                            <div className="selected-furniture input-row">
+                                <p>色</p>
+                                <input type="color" value={selColor} onChange={e => {
+                                    setSelColor(e.target.value);
+                                    updateSelected(undefined, undefined, e.target.value);
+                                }} />
+                            </div>
                             <div className="selected-furniture movement-buttons">
                                 <button onClick={() => moveSelected(-0.01, 0)}>左</button>
                                 <button onClick={() => moveSelected(0.01, 0)}>右</button>
@@ -320,6 +336,7 @@ export default function LeftBar(props) {
                 <details className="leftbarContents fixFurniture">
                     <summary className="summary">家具を修正</summary>
                     {making && (
+                        <>
                         <div className="input_flex">
                             <p>壁の色：</p>
                             <input
@@ -332,6 +349,19 @@ export default function LeftBar(props) {
                                 id="wallColorInput"
                             />
                         </div>
+                        <div className="input_flex">
+                            <p>床の色：</p>
+                            <input
+                                type="color"
+                                value={floorColor}
+                                onChange={(e) => {
+                                    setFloorColor(e.target.value);
+                                    if (typeof onUpdateFloorColor === "function") onUpdateFloorColor(e.target.value);
+                                }}
+                                id="floorColorInput"
+                            />
+                        </div>
+                        </>
                     )}
                     <button id="fixFurnitureButton" onClick={handleFixFurniture}>修正</button>
                 </details>

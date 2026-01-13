@@ -126,7 +126,7 @@ const FurnitureMesh = ({ type, color, selected, isOpen }) => {
     )
 }
 
-export default function Room({ width = 10, height = 10, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, switchDim = false, wallColor = '#ffffff', isMakingMode = false }) {
+export default function Room({ width = 10, height = 10, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, switchDim = false, wallColor = '#ffffff', floorColor = '#ffffff', isMakingMode = false }) {
     const aspect = (height === 0) ? 1 : (width / height)
 
     if (isMakingMode) {
@@ -168,12 +168,12 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
         return null
     }
 
-    const wall3DMesh = (size, position, rotation) => {
+    const wall3DMesh = (size, position, rotation, color = wallColor) => {
         return (
             <group position={position} rotation={rotation} onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(null) }}>
                 <mesh renderOrder={0}>
                     <planeGeometry args={size} />
-                    <meshBasicMaterial color={wallColor} side={THREE.DoubleSide} toneMapped={false} />
+                    <meshBasicMaterial color={color} side={THREE.DoubleSide} toneMapped={false} />
                 </mesh>
                 <lineSegments renderOrder={1}>
                     <edgesGeometry args={[new THREE.PlaneGeometry(...size)]} />
@@ -185,7 +185,7 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
 
     const furniture3DMesh = (furniture, index) => {
         const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5', chest: '#5d4037' }
-        const color = colorMap[furniture.type] || '#999'
+        const color = furniture.color || colorMap[furniture.type] || '#999'
         const posX = (furniture.x + 0.5) * planeWidth
         const posZ = (0.5 - furniture.y) * planeHeight
         const rot = furniture.r || 0
@@ -212,7 +212,7 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                     <directionalLight position={[5, 5, 5]} intensity={0.6} />
                     {wall3DMesh([planeWidth, roomHeight], [planeWidth / 2, roomHeight / 2, 0], [0, 0, 0])}
                     {wall3DMesh([planeHeight, roomHeight], [0, roomHeight / 2, planeHeight / 2], [0, Math.PI / 2, 0])}
-                    {wall3DMesh([planeWidth, planeHeight], [planeWidth / 2, 0, planeHeight / 2], [-Math.PI / 2, 0, 0])}
+                    {wall3DMesh([planeWidth, planeHeight], [planeWidth / 2, 0, planeHeight / 2], [-Math.PI / 2, 0, 0], floorColor)}
 
                     {Array.isArray(furnitureList) && furnitureList.map((f, i) => {
                         return furniture3DMesh(f, i)
@@ -226,23 +226,23 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                     <directionalLight position={[5, 5, 5]} intensity={0.8} />
 
                     <group ref={roomGroup} position={[0, 0, 0]} scale={[planeWidth, planeHeight, 1]} onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(null) }}>
-                        <mesh renderOrder={-1} position={[0, 0, -0.01]}>
+                        <mesh renderOrder={-1} position={[0, 0, -0.1]}>
                              <planeGeometry args={[1, 1]} />
-                             <meshBasicMaterial color={wallColor} toneMapped={false} />
+                             <meshBasicMaterial color={floorColor} toneMapped={false} />
                         </mesh>
-                        <lineSegments>
+                        <lineSegments position={[0, 0, -0.05]}>
                             <edgesGeometry args={[new THREE.PlaneGeometry(1, 1)]} />
                             <lineBasicMaterial color="#000000" />
                         </lineSegments>
 
                         {Array.isArray(furnitureList) && furnitureList.map((f, i) => {
                             const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5', chest: '#5d4037' }
-                            const color = colorMap[f.type] || '#999'
+                            const color = f.color || colorMap[f.type] || '#999'
                             const posX = (f.x || 0)
                             const posY = (f.y || 0)
                             const rot = f.r || 0
                             return (
-                                <group key={i} position={[posX, posY, 0]} rotation={[0, 0, rot]} onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(i); }}>
+                                <group key={i} position={[posX, posY, 0.05]} rotation={[0, 0, rot]} onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(i); }}>
                                     <mesh scale={[f.w || 0.1, f.h || 0.1, 1]}>
                                         <planeGeometry args={[1, 1]} />
                                         <meshStandardMaterial color={selectedIndex === i ? SELECTED_COLOR : color} />
@@ -251,7 +251,7 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                                         <group position={[0, -(f.h || 0.1) * 0.65, 0]} scale={[f.w || 0.1, (f.h || 0.1) * 0.3, 1]}>
                                             <mesh>
                                                 <planeGeometry args={[1, 1]} />
-                                                <meshBasicMaterial color="#dddddd" opacity={0.6} transparent />
+                                                <meshBasicMaterial color={selectedIndex === i ? SELECTED_COLOR : color} opacity={0.6} transparent />
                                             </mesh>
                                             <lineSegments>
                                                 <edgesGeometry args={[new THREE.PlaneGeometry(1, 1)]} />
