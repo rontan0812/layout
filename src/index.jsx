@@ -10,7 +10,6 @@ const root = ReactDOM.createRoot(document.querySelector('#root'))
 
 export default function App() {
 
-    // about Room
     const [roomWidth, setRoomWidth] = useState(() => {
         const v = parseInt(localStorage.getItem('roomWidth'), 10)
         return Number.isFinite(v) ? v : 10
@@ -67,7 +66,6 @@ export default function App() {
 
 
 
-    // about Furniture
     const [furnitureList, setFurnitureList] = useState(() => {
         try {
             const raw = localStorage.getItem('furnitureList')
@@ -135,6 +133,18 @@ export default function App() {
         } catch (e) {}
     }
 
+    const [floorColor, setFloorColor] = useState(() => {
+        const v = localStorage.getItem('floorColor')
+        return v || '#ffffff'
+    })
+
+    const handleUpdateFloorColor = (color) => {
+        setFloorColor(color)
+        try {
+            localStorage.setItem('floorColor', color)
+        } catch (e) {}
+    }
+
 
 
     
@@ -161,9 +171,11 @@ export default function App() {
                 onSwitchDim={setSwitchDim}
                 onUpdateWallColor={handleUpdateWallColor}
                 initialWallColor={wallColor}
+                onUpdateFloorColor={handleUpdateFloorColor}
+                initialFloorColor={floorColor}
             />
-            {roomVisible ? (
-                <Room width={roomWidth} height={roomHeight} furnitureList={furnitureList} selectedIndex={selectedIndex} onSelectFurniture={handleSelectFurniture} switchDim={switchDim} wallColor={wallColor} />
+            {roomVisible || makeMode ? (
+                <Room width={roomWidth} height={roomHeight} furnitureList={furnitureList} selectedIndex={selectedIndex} onSelectFurniture={handleSelectFurniture} switchDim={switchDim} wallColor={wallColor} floorColor={floorColor} isMakingMode={makeMode} />
             ) : (
                 <div className="room" />
             )}

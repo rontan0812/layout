@@ -20,11 +20,15 @@ export default function LeftBar(props) {
         switchDim = false,
         onSwitchDim = null,
         onUpdateWallColor = null,
-        initialWallColor = '#ffffff'
+        initialWallColor = '#ffffff',
+        onUpdateFloorColor = null,
+        initialFloorColor = '#ffffff'
     } = props;
     const [widthInput, setWidthInput] = useState(initialWidth);
     const [heightInput, setHeightInput] = useState(initialHeight);
     const [wallColor, setWallColor] = useState(initialWallColor);
+    const [floorColor, setFloorColor] = useState(initialFloorColor);
+    const [createMode, setCreateMode] = useState('numeric');
 
     const [fType, setFType] = useState('sofa')
     const [fX, setFX] = useState(5)
@@ -59,6 +63,9 @@ export default function LeftBar(props) {
 
         if (typeof onCreate === "function") onCreate(width, height);
         if (typeof onStart === "function") onStart(true);
+        if (createMode === 'drawing' && isMakingMode) {
+            if (typeof onMode === "function") onMode(true);
+        }
     }
 
     function handleUpdateRoom() {
@@ -106,6 +113,7 @@ export default function LeftBar(props) {
 
     function handleFixFurniture() {
         if (typeof onUpdateWallColor === "function") onUpdateWallColor(wallColor);
+        if (typeof onUpdateFloorColor === "function") onUpdateFloorColor(floorColor);
     }
 
     function handleRemoveFurniture() {
@@ -115,6 +123,7 @@ export default function LeftBar(props) {
 
     const [selX, setSelX] = useState(0)
     const [selY, setSelY] = useState(0)
+    const [selColor, setSelColor] = useState('#000000')
 
     useEffect(() => {
         if (selectedIndex == null || !Array.isArray(furnitureList)) return
@@ -129,9 +138,12 @@ export default function LeftBar(props) {
 
         setSelX(realX.toFixed(2))
         setSelY(realY.toFixed(2))
+
+        const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5', chest: '#5d4037' }
+        setSelColor(f.color || colorMap[f.type] || '#999999')
     }, [selectedIndex, furnitureList, widthInput, heightInput])
 
-    function updateSelected(newX, newY) {
+    function updateSelected(newX, newY, newColor) {
         if (selectedIndex == null) return
         
         const width = parseFloat(widthInput) || 10
@@ -139,30 +151,23 @@ export default function LeftBar(props) {
 
         const inputX = (typeof newX === 'number') ? newX : parseFloat(selX)
         const inputY = (typeof newY === 'number') ? newY : parseFloat(selY)
+        const color = (typeof newColor === 'string') ? newColor : selColor
 
         if (isNaN(inputX) || isNaN(inputY)) return
 
         const x = (inputX / width) - 0.5
         const y = 0.5 - (inputY / height)
 
-        if (typeof onUpdateFurniture === 'function') onUpdateFurniture(selectedIndex, { x, y })
+        if (typeof onUpdateFurniture === 'function') onUpdateFurniture(selectedIndex, { x, y, color })
     }
 
-    function moveSelected(dx, dy) {
+    function toggleChestOpen() {
         if (selectedIndex == null) return
         const f = furnitureList[selectedIndex]
         if (!f) return
-        const curX = (f.x || 0)
-        const curY = (f.y || 0)
-        const nx = Math.max(-0.5, Math.min(0.5, curX + dx))
-        const ny = Math.max(-0.5, Math.min(0.5, curY + dy))
         
-        const width = parseFloat(widthInput) || 10
-        const height = parseFloat(heightInput) || 10
-        setSelX((((nx + 0.5) * width)).toFixed(2))
-        setSelY(((0.5 - ny) * height).toFixed(2))
-
-        if (typeof onUpdateFurniture === 'function') onUpdateFurniture(selectedIndex, { x: nx, y: ny })
+        const isOpen = !f.isOpen
+        if (typeof onUpdateFurniture === 'function') onUpdateFurniture(selectedIndex, { isOpen })
     }
 
     return <>
@@ -170,39 +175,58 @@ export default function LeftBar(props) {
             <details className="leftbarContents makeRoom">
                 <summary className="summary">{making ? '間取りを修正' : '間取りを作成'}</summary>
                 <div className="input_flex">
-                    <p>横：</p>
-                    <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={widthInput}
-                        onChange={(e) => setWidthInput(e.target.value)}
-                        id="widthInput"
-                    />
+                    <p>作成方法：</p>
+                    <select value={createMode} onChange={(e) => {
+                        const val = e.target.value;
+                        setCreateMode(val);
+                        if (val === 'drawing') {
+                            if (!isMakingMode && typeof onMode === 'function') onMode(false);
+                        } else {
+                            if (isMakingMode && typeof onMode === 'function') onMode(true);
+                        }
+                    }} disabled={making}>
+                        <option value="numeric">数値入力</option>
+                        <option value="drawing">図で作成</option>
+                    </select>
                 </div>
-                <div className="input_flex">
-                    <p>縦：</p>
-                    <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={heightInput}
-                        onChange={(e) => setHeightInput(e.target.value)}
-                        id="heightInput"
-                    />
-                </div>
+                {createMode === 'numeric' && (
+                    <>
+                        <div className="input_flex">
+                            <p>横：</p>
+                            <input
+                                type="number"
+                                min="1"
+                                max="100"
+                                value={widthInput}
+                                onChange={(e) => setWidthInput(e.target.value)}
+                                id="widthInput"
+                            />
+                        </div>
+                        <div className="input_flex">
+                            <p>縦：</p>
+                            <input
+                                type="number"
+                                min="1"
+                                max="100"
+                                value={heightInput}
+                                onChange={(e) => setHeightInput(e.target.value)}
+                                id="heightInput"
+                            />
+                        </div>
+                    </>
+                )}
                 <div className="button-group">
                     {making ? (
                         <>
                             <button id="updateRoomButton" onClick={handleUpdateRoom}>修正を保存</button>
+                            <button id="makeRoomModeChangeButton" onClick={changeToMakeRoom}>{isMakingMode ? "戻る" : "作成モード"}</button>
                         </>
                     ) : (
                         <button id="makeRoomButton" onClick={handleMakeRoom}>作成</button>
                     )}
-                    <button id="makeRoomModeChangeButton" onClick={changeToMakeRoom}>{isMakingMode ? "戻る" : "作成モード"}</button> 
                 </div>
             </details>
-            {making && (
+            {!isMakingMode && making && (
                 <div>
                 <details className="leftbarContents furniture">
                     <summary className="summary">家具を配置</summary>
@@ -212,6 +236,7 @@ export default function LeftBar(props) {
                             <option value="sofa">ソファ</option>
                             <option value="table">テーブル</option>
                             <option value="chair">チェア</option>
+                            <option value="chest">タンス</option>
                         </select>
                     </div>
                     <div className="input_flex">
@@ -240,18 +265,19 @@ export default function LeftBar(props) {
                     </div>
                     {selectedIndex != null && (
                         <div className="selected-furniture">
-                            <h4>選択中の家具 (#{selectedIndex})</h4>
+                            {(furnitureList[selectedIndex] && furnitureList[selectedIndex].type === 'chest') ? (
+                                <button onClick={toggleChestOpen}>
+                                    引き出しを{furnitureList[selectedIndex].isOpen ? '閉める' : '開ける'}
+                                </button>
+                            ) : (
+                                <h4>選択中の家具 (#{selectedIndex})</h4>
+                            )}
                             <div className="selected-furniture input-row">
-                                <p>X (m)</p>
-                                <input type="number" min="0" max="100" value={selX} onChange={e => setSelX(e.target.value)} onBlur={() => updateSelected()} />
-                                <p>Y (m)</p>
-                                <input type="number" min="0" max="100" value={selY} onChange={e => setSelY(e.target.value)} onBlur={() => updateSelected()} />
-                            </div>
-                            <div className="selected-furniture movement-buttons">
-                                <button onClick={() => moveSelected(-0.01, 0)}>左</button>
-                                <button onClick={() => moveSelected(0.01, 0)}>右</button>
-                                <button onClick={() => moveSelected(0, -0.01)}>下</button>
-                                <button onClick={() => moveSelected(0, 0.01)}>上</button>
+                                <p>色</p>
+                                <input type="color" value={selColor} onChange={e => {
+                                    setSelColor(e.target.value);
+                                    updateSelected(undefined, undefined, e.target.value);
+                                }} />
                             </div>
                         </div>
                     )}
@@ -281,6 +307,7 @@ export default function LeftBar(props) {
                 <details className="leftbarContents fixFurniture">
                     <summary className="summary">家具を修正</summary>
                     {making && (
+                        <>
                         <div className="input_flex">
                             <p>壁の色：</p>
                             <input
@@ -293,6 +320,19 @@ export default function LeftBar(props) {
                                 id="wallColorInput"
                             />
                         </div>
+                        <div className="input_flex">
+                            <p>床の色：</p>
+                            <input
+                                type="color"
+                                value={floorColor}
+                                onChange={(e) => {
+                                    setFloorColor(e.target.value);
+                                    if (typeof onUpdateFloorColor === "function") onUpdateFloorColor(e.target.value);
+                                }}
+                                id="floorColorInput"
+                            />
+                        </div>
+                        </>
                     )}
                     <button id="fixFurnitureButton" onClick={handleFixFurniture}>修正</button>
                 </details>
