@@ -161,23 +161,6 @@ export default function LeftBar(props) {
         if (typeof onUpdateFurniture === 'function') onUpdateFurniture(selectedIndex, { x, y, color })
     }
 
-    function moveSelected(dx, dy) {
-        if (selectedIndex == null) return
-        const f = furnitureList[selectedIndex]
-        if (!f) return
-        const curX = (f.x || 0)
-        const curY = (f.y || 0)
-        const nx = Math.max(-0.5, Math.min(0.5, curX + dx))
-        const ny = Math.max(-0.5, Math.min(0.5, curY + dy))
-        
-        const width = parseFloat(widthInput) || 10
-        const height = parseFloat(heightInput) || 10
-        setSelX((((nx + 0.5) * width)).toFixed(2))
-        setSelY(((0.5 - ny) * height).toFixed(2))
-
-        if (typeof onUpdateFurniture === 'function') onUpdateFurniture(selectedIndex, { x: nx, y: ny })
-    }
-
     function toggleChestOpen() {
         if (selectedIndex == null) return
         const f = furnitureList[selectedIndex]
@@ -290,23 +273,11 @@ export default function LeftBar(props) {
                                 <h4>選択中の家具 (#{selectedIndex})</h4>
                             )}
                             <div className="selected-furniture input-row">
-                                <p>X (m)</p>
-                                <input type="number" min="0" max="100" value={selX} onChange={e => setSelX(e.target.value)} onBlur={() => updateSelected()} />
-                                <p>Y (m)</p>
-                                <input type="number" min="0" max="100" value={selY} onChange={e => setSelY(e.target.value)} onBlur={() => updateSelected()} />
-                            </div>
-                            <div className="selected-furniture input-row">
                                 <p>色</p>
                                 <input type="color" value={selColor} onChange={e => {
                                     setSelColor(e.target.value);
                                     updateSelected(undefined, undefined, e.target.value);
                                 }} />
-                            </div>
-                            <div className="selected-furniture movement-buttons">
-                                <button onClick={() => moveSelected(-0.01, 0)}>左</button>
-                                <button onClick={() => moveSelected(0.01, 0)}>右</button>
-                                <button onClick={() => moveSelected(0, -0.01)}>下</button>
-                                <button onClick={() => moveSelected(0, 0.01)}>上</button>
                             </div>
                         </div>
                     )}

@@ -247,6 +247,10 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                                         <planeGeometry args={[1, 1]} />
                                         <meshStandardMaterial color={selectedIndex === i ? SELECTED_COLOR : color} />
                                     </mesh>
+                                    <lineSegments scale={[f.w || 0.1, f.h || 0.1, 1]}>
+                                        <edgesGeometry args={[new THREE.PlaneGeometry(1, 1)]} />
+                                        <lineBasicMaterial color="#ffffff" depthTest={false} />
+                                    </lineSegments>
                                     {f.type === 'chest' && (
                                         <group position={[0, -(f.h || 0.1) * 0.65, 0]} scale={[f.w || 0.1, (f.h || 0.1) * 0.3, 1]}>
                                             <mesh>
