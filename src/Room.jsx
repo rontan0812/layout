@@ -1,7 +1,14 @@
 import { Canvas, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useRef, useEffect } from 'react'
-import { PerspectiveCamera } from '@react-three/drei'
+import { PerspectiveCamera, TransformControls } from '@react-three/drei'
+
+const normalizeRightAngle = (angle) => {
+    const twoPi = Math.PI * 2
+    let value = angle % twoPi
+    if (value < 0) value += twoPi
+    return value
+}
 
 const MeshWithEdges = ({ position, scale, material }) => (
     <group position={position} scale={scale}>
@@ -126,7 +133,251 @@ const FurnitureMesh = ({ type, color, selected, isOpen }) => {
     )
 }
 
-export default function Room({ width = 10, height = 10, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, switchDim = false, wallColor = '#ffffff', floorColor = '#ffffff', isMakingMode = false }) {
+const Furniture3DItem = ({ furniture, index, planeWidth, planeHeight, roomHeight, selected, onSelect, onUpdate }) => {
+    const groupRef = useRef()
+    const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5', chest: '#5d4037' }
+    const color = furniture.color || colorMap[furniture.type] || '#999'
+
+    const w = (furniture.w || 0.1) * planeWidth
+    const d = (furniture.h || 0.1) * planeHeight 
+    const h = (furniture.t || 0.1)
+    
+    const posX = (furniture.x + 0.5) * planeWidth
+    const posY = h / 2 + (furniture.ty || 0)
+    const posZ = (0.5 - furniture.y) * planeHeight
+    const rot = furniture.r || 0
+
+    const getLocalFootprint = () => {
+        if (furniture.type === 'chair') {
+            return { minX: -0.45, maxX: 0.45, minZ: -0.45, maxZ: 0.45 }
+        }
+        if (furniture.type === 'chest' && furniture.isOpen) {
+            return { minX: -0.5, maxX: 0.5, minZ: -0.5, maxZ: 0.8 }
+        }
+        return { minX: -0.5, maxX: 0.5, minZ: -0.5, maxZ: 0.5 }
+    }
+
+    const getFootprintBounds = () => {
+        const r = furniture.r || 0
+        const cosR = Math.cos(r)
+        const sinR = Math.sin(r)
+        const sx = (furniture.w || 0.1) * planeWidth
+        const sz = (furniture.h || 0.1) * planeHeight
+
+        const { minX: localXMin, maxX: localXMax, minZ: localZMin, maxZ: localZMax } = getLocalFootprint()
+
+        const localCorners = [
+            [localXMin, localZMin],
+            [localXMax, localZMin],
+            [localXMin, localZMax],
+            [localXMax, localZMax],
+        ]
+
+        let minOffsetX = Infinity
+        let maxOffsetX = -Infinity
+        let minOffsetZ = Infinity
+        let maxOffsetZ = -Infinity
+
+        for (const [lx, lz] of localCorners) {
+            const x = lx * sx
+            const z = lz * sz
+            const rx = x * cosR + z * sinR
+            const rz = -x * sinR + z * cosR
+
+            minOffsetX = Math.min(minOffsetX, rx)
+            maxOffsetX = Math.max(maxOffsetX, rx)
+            minOffsetZ = Math.min(minOffsetZ, rz)
+            maxOffsetZ = Math.max(maxOffsetZ, rz)
+        }
+
+        return { minOffsetX, maxOffsetX, minOffsetZ, maxOffsetZ }
+    }
+
+    const clampPosition = () => {
+        if (!groupRef.current) return
+        const pos = groupRef.current.position
+        const { minOffsetX, maxOffsetX, minOffsetZ, maxOffsetZ } = getFootprintBounds()
+        const minCenterX = -minOffsetX
+        const maxCenterX = planeWidth - maxOffsetX
+        const minCenterZ = -minOffsetZ
+        const maxCenterZ = planeHeight - maxOffsetZ
+
+        // Keep vertical position fixed in the right-side 3D interaction area.
+        pos.y = posY
+
+        pos.x = Math.max(minCenterX, Math.min(maxCenterX, pos.x))
+        pos.z = Math.max(minCenterZ, Math.min(maxCenterZ, pos.z))
+    }
+
+    return (
+        <>
+            <group 
+                ref={groupRef} 
+                position={[posX, posY, posZ]} 
+                rotation={[0, rot, 0]} 
+                onPointerDown={(e) => {
+                    e.stopPropagation()
+                    if (!selected) onSelect(index)
+                }}
+            >
+                <group scale={[w, h, d]}>
+                    <FurnitureMesh type={furniture.type} color={color} selected={selected} isOpen={furniture.isOpen} />
+                </group>
+            </group>
+            {selected && (
+                <TransformControls 
+                    object={groupRef} 
+                    mode="translate"
+                    showY={false}
+                    onChange={() => { clampPosition() }}
+                    onMouseUp={() => {
+                        clampPosition()
+                        if (groupRef.current) {
+                            const { x, z } = groupRef.current.position
+                            const newX = x / planeWidth - 0.5
+                            const newY = 0.5 - z / planeHeight
+                            if (typeof onUpdate === 'function') onUpdate(index, { x: newX, y: newY })
+                        }
+                    }}
+                />
+            )}
+        </>
+    )
+}
+
+const Furniture2DItem = ({ furniture, index, planeWidth, planeHeight, selected, onSelect, onUpdate }) => {
+    const groupRef = useRef()
+    const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5', chest: '#5d4037' }
+    const color = furniture.color || colorMap[furniture.type] || '#999'
+    const posX = (furniture.x + 0.5) * planeWidth
+    const posY = (0.5 - furniture.y) * planeHeight
+    const rot = furniture.r || 0
+
+    const getLocalFootprint2D = () => {
+        if (furniture.type === 'chair') {
+            return { minX: -0.5, maxX: 0.5, minY: -0.5, maxY: 0.5 }
+        }
+        if (furniture.type === 'chest' && furniture.isOpen) {
+            return { minX: -0.5, maxX: 0.5, minY: -0.8, maxY: 0.5 }
+        }
+        return { minX: -0.5, maxX: 0.5, minY: -0.5, maxY: 0.5 }
+    }
+
+    const getBounds2D = () => {
+        const r = furniture.r || 0
+        const cosR = Math.cos(r)
+        const sinR = Math.sin(r)
+        const sx = (furniture.w || 0.1) * planeWidth
+        const sy = (furniture.h || 0.1) * planeHeight
+        const { minX, maxX, minY, maxY } = getLocalFootprint2D()
+        const corners = [
+            [minX, minY],
+            [maxX, minY],
+            [minX, maxY],
+            [maxX, maxY],
+        ]
+
+        let minOffsetX = Infinity
+        let maxOffsetX = -Infinity
+        let minOffsetY = Infinity
+        let maxOffsetY = -Infinity
+
+        for (const [lx, ly] of corners) {
+            const x = lx * sx
+            const y = ly * sy
+            const rx = x * cosR - y * sinR
+            const ry = x * sinR + y * cosR
+            minOffsetX = Math.min(minOffsetX, rx)
+            maxOffsetX = Math.max(maxOffsetX, rx)
+            minOffsetY = Math.min(minOffsetY, ry)
+            maxOffsetY = Math.max(maxOffsetY, ry)
+        }
+
+        return { minOffsetX, maxOffsetX, minOffsetY, maxOffsetY }
+    }
+
+    const clampCenter2D = (x, y) => {
+        const { minOffsetX, maxOffsetX, minOffsetY, maxOffsetY } = getBounds2D()
+        // Keep a tiny inset to avoid visual spill caused by line width / float precision.
+        const inset = 0.03
+        const minCenterX = -minOffsetX + inset
+        const maxCenterX = planeWidth - maxOffsetX - inset
+        const minCenterY = -minOffsetY + inset
+        const maxCenterY = planeHeight - maxOffsetY - inset
+        return {
+            x: Math.max(minCenterX, Math.min(maxCenterX, x)),
+            y: Math.max(minCenterY, Math.min(maxCenterY, y)),
+        }
+    }
+
+    const clampPosition2D = () => {
+        if (!groupRef.current) return
+        const pos = groupRef.current.position
+        const clamped = clampCenter2D(pos.x, pos.y)
+        pos.x = clamped.x
+        pos.y = clamped.y
+        pos.z = 0.05
+    }
+
+    const initialClamped = clampCenter2D(posX, posY)
+
+    return (
+        <>
+            <group
+                ref={groupRef}
+                position={[initialClamped.x, initialClamped.y, 0.05]}
+                rotation={[0, 0, rot]}
+                onPointerDown={(e) => {
+                    e.stopPropagation()
+                    if (!selected) onSelect(index)
+                }}
+            >
+                <mesh scale={[(furniture.w || 0.1) * planeWidth, (furniture.h || 0.1) * planeHeight, 1]}>
+                    <planeGeometry args={[1, 1]} />
+                    <meshStandardMaterial color={selected ? '#ff0000' : color} />
+                </mesh>
+                <lineSegments scale={[(furniture.w || 0.1) * planeWidth, (furniture.h || 0.1) * planeHeight, 1]}>
+                    <edgesGeometry args={[new THREE.PlaneGeometry(1, 1)]} />
+                    <lineBasicMaterial color="#ffffff" depthTest={false} />
+                </lineSegments>
+                {furniture.type === 'chest' && (
+                    <group
+                        position={[0, -((furniture.h || 0.1) * planeHeight) * 0.65, 0]}
+                        scale={[(furniture.w || 0.1) * planeWidth, ((furniture.h || 0.1) * planeHeight) * 0.3, 1]}
+                    >
+                        <mesh>
+                            <planeGeometry args={[1, 1]} />
+                            <meshBasicMaterial color={selected ? '#ff0000' : color} opacity={0.6} transparent />
+                        </mesh>
+                        <lineSegments>
+                            <edgesGeometry args={[new THREE.PlaneGeometry(1, 1)]} />
+                            <lineBasicMaterial color="#888888" />
+                        </lineSegments>
+                    </group>
+                )}
+            </group>
+            {selected && (
+                <TransformControls
+                    object={groupRef}
+                    mode="translate"
+                    showZ={false}
+                    onChange={() => { clampPosition2D() }}
+                    onMouseUp={() => {
+                        clampPosition2D()
+                        if (groupRef.current) {
+                            const { x, y } = groupRef.current.position
+                            const newX = x / planeWidth - 0.5
+                            const newY = 0.5 - y / planeHeight
+                            if (typeof onUpdate === 'function') onUpdate(index, { x: newX, y: newY })
+                        }
+                    }}
+                />
+            )}
+        </>
+    )
+}
+
+export default function Room({ width = 10, height = 10, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, onUpdateFurniture = () => {}, switchDim = false, wallColor = '#ffffff', floorColor = '#ffffff', isMakingMode = false }) {
     const aspect = (height === 0) ? 1 : (width / height)
 
     if (isMakingMode) {
@@ -149,7 +400,26 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
     const roomHeight = 2.4 //一般的な部屋の高さ(m)
 
     const roomGroup = useRef()
-    const SELECTED_COLOR = '#ff0000'
+
+    useEffect(() => {
+        const onKeyDown = (event) => {
+            if (selectedIndex == null) return
+            const key = String(event.key || '').toLowerCase()
+            if (key !== 'r') return
+
+            event.preventDefault()
+            const selected = Array.isArray(furnitureList) ? furnitureList[selectedIndex] : null
+            if (!selected) return
+
+            const current = selected.r || 0
+            const delta = event.shiftKey ? -Math.PI / 2 : Math.PI / 2
+            const next = normalizeRightAngle(current + delta)
+            onUpdateFurniture(selectedIndex, { r: next })
+        }
+
+        window.addEventListener('keydown', onKeyDown)
+        return () => window.removeEventListener('keydown', onKeyDown)
+    }, [selectedIndex, furnitureList, onUpdateFurniture])
 
     const CameraController = ({ is3D = false }) => {
         const { camera } = useThree()
@@ -159,8 +429,8 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                 camera.position.set(10, 10, 10)
                 camera.lookAt(planeWidth / 2, 0, planeHeight / 2)
             } else {
-                camera.position.set(0, 0, 10)
-                camera.lookAt(0, 0, 0)
+                camera.position.set(planeWidth / 2, planeHeight / 2, 10)
+                camera.lookAt(planeWidth / 2, planeHeight / 2, 0)
             }
             camera.updateProjectionMatrix()
         }, [is3D, camera])
@@ -183,25 +453,6 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
         )
     }
 
-    const furniture3DMesh = (furniture, index) => {
-        const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5', chest: '#5d4037' }
-        const color = furniture.color || colorMap[furniture.type] || '#999'
-        const posX = (furniture.x + 0.5) * planeWidth
-        const posZ = (0.5 - furniture.y) * planeHeight
-        const rot = furniture.r || 0
-        const width = (furniture.w || 0.1) * planeWidth
-        const depth = (furniture.h || 0.1) * planeHeight
-        const height = (furniture.t || 0.1)
-        const posY = height / 2
-        return (
-            <group key={index} position={[posX, posY, posZ]} rotation={[0, rot, 0]} onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(index); }}>
-                <group scale={[width, height, depth]}>
-                    <FurnitureMesh type={furniture.type} color={color} selected={selectedIndex === index} isOpen={furniture.isOpen} />
-                </group>
-            </group>
-        )
-    }
-
     return (
         <div className="room">
             {switchDim ? (
@@ -214,9 +465,19 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                     {wall3DMesh([planeHeight, roomHeight], [0, roomHeight / 2, planeHeight / 2], [0, Math.PI / 2, 0])}
                     {wall3DMesh([planeWidth, planeHeight], [planeWidth / 2, 0, planeHeight / 2], [-Math.PI / 2, 0, 0], floorColor)}
 
-                    {Array.isArray(furnitureList) && furnitureList.map((f, i) => {
-                        return furniture3DMesh(f, i)
-                    })}
+                    {Array.isArray(furnitureList) && furnitureList.map((f, i) => (
+                        <Furniture3DItem
+                            key={i}
+                            index={i}
+                            furniture={f}
+                            planeWidth={planeWidth}
+                            planeHeight={planeHeight}
+                            roomHeight={roomHeight}
+                            selected={selectedIndex === i}
+                            onSelect={onSelectFurniture}
+                            onUpdate={onUpdateFurniture}
+                        />
+                    ))}
                 </Canvas>
             ) : (
                 <Canvas className="canvas-2d">
@@ -225,47 +486,32 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                     <ambientLight intensity={0.6} />
                     <directionalLight position={[5, 5, 5]} intensity={0.8} />
 
-                    <group ref={roomGroup} position={[0, 0, 0]} scale={[planeWidth, planeHeight, 1]} onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(null) }}>
-                        <mesh renderOrder={-1} position={[0, 0, -0.1]}>
-                             <planeGeometry args={[1, 1]} />
+                    <group ref={roomGroup} position={[0, 0, 0]}>
+                        <mesh
+                            renderOrder={-1}
+                            position={[planeWidth / 2, planeHeight / 2, -0.1]}
+                            onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(null) }}
+                        >
+                             <planeGeometry args={[planeWidth, planeHeight]} />
                              <meshBasicMaterial color={floorColor} toneMapped={false} />
                         </mesh>
-                        <lineSegments position={[0, 0, -0.05]}>
-                            <edgesGeometry args={[new THREE.PlaneGeometry(1, 1)]} />
+                        <lineSegments position={[planeWidth / 2, planeHeight / 2, -0.05]}>
+                            <edgesGeometry args={[new THREE.PlaneGeometry(planeWidth, planeHeight)]} />
                             <lineBasicMaterial color="#000000" />
                         </lineSegments>
 
-                        {Array.isArray(furnitureList) && furnitureList.map((f, i) => {
-                            const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5', chest: '#5d4037' }
-                            const color = f.color || colorMap[f.type] || '#999'
-                            const posX = (f.x || 0)
-                            const posY = (f.y || 0)
-                            const rot = f.r || 0
-                            return (
-                                <group key={i} position={[posX, posY, 0.05]} rotation={[0, 0, rot]} onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(i); }}>
-                                    <mesh scale={[f.w || 0.1, f.h || 0.1, 1]}>
-                                        <planeGeometry args={[1, 1]} />
-                                        <meshStandardMaterial color={selectedIndex === i ? SELECTED_COLOR : color} />
-                                    </mesh>
-                                    <lineSegments scale={[f.w || 0.1, f.h || 0.1, 1]}>
-                                        <edgesGeometry args={[new THREE.PlaneGeometry(1, 1)]} />
-                                        <lineBasicMaterial color="#ffffff" depthTest={false} />
-                                    </lineSegments>
-                                    {f.type === 'chest' && (
-                                        <group position={[0, -(f.h || 0.1) * 0.65, 0]} scale={[f.w || 0.1, (f.h || 0.1) * 0.3, 1]}>
-                                            <mesh>
-                                                <planeGeometry args={[1, 1]} />
-                                                <meshBasicMaterial color={selectedIndex === i ? SELECTED_COLOR : color} opacity={0.6} transparent />
-                                            </mesh>
-                                            <lineSegments>
-                                                <edgesGeometry args={[new THREE.PlaneGeometry(1, 1)]} />
-                                                <lineBasicMaterial color="#888888" />
-                                            </lineSegments>
-                                        </group>
-                                    )}
-                                </group>
-                            )
-                        })}
+                        {Array.isArray(furnitureList) && furnitureList.map((f, i) => (
+                            <Furniture2DItem
+                                key={i}
+                                index={i}
+                                furniture={f}
+                                planeWidth={planeWidth}
+                                planeHeight={planeHeight}
+                                selected={selectedIndex === i}
+                                onSelect={onSelectFurniture}
+                                onUpdate={onUpdateFurniture}
+                            />
+                        ))}
                     </group>
                 </Canvas>
             )}

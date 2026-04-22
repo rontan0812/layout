@@ -108,7 +108,7 @@ export default function App() {
     
 
     const handleSelectFurniture = (index) => {
-        setSelectedIndex(index)
+        setSelectedIndex(prev => (prev === index ? null : index))
     }
 
     const handleUpdateFurniture = (index, updated) => {
@@ -123,7 +123,7 @@ export default function App() {
 
     const [wallColor, setWallColor] = useState(() => {
         const v = localStorage.getItem('wallColor')
-        return v || '#ffffff'
+        return v || '#e8e0d5'
     })
 
     const handleUpdateWallColor = (color) => {
@@ -135,7 +135,7 @@ export default function App() {
 
     const [floorColor, setFloorColor] = useState(() => {
         const v = localStorage.getItem('floorColor')
-        return v || '#ffffff'
+        return v || '#c8a97e'
     })
 
     const handleUpdateFloorColor = (color) => {
@@ -175,7 +175,18 @@ export default function App() {
                 initialFloorColor={floorColor}
             />
             {roomVisible || makeMode ? (
-                <Room width={roomWidth} height={roomHeight} furnitureList={furnitureList} selectedIndex={selectedIndex} onSelectFurniture={handleSelectFurniture} switchDim={switchDim} wallColor={wallColor} floorColor={floorColor} isMakingMode={makeMode} />
+                <Room 
+                    width={roomWidth} 
+                    height={roomHeight} 
+                    furnitureList={furnitureList} 
+                    selectedIndex={selectedIndex} 
+                    onSelectFurniture={handleSelectFurniture} 
+                    onUpdateFurniture={handleUpdateFurniture}
+                    switchDim={switchDim} 
+                    wallColor={wallColor} 
+                    floorColor={floorColor} 
+                    isMakingMode={makeMode} 
+                />
             ) : (
                 <div className="room" />
             )}

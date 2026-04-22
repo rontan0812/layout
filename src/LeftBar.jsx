@@ -20,9 +20,9 @@ export default function LeftBar(props) {
         switchDim = false,
         onSwitchDim = null,
         onUpdateWallColor = null,
-        initialWallColor = '#ffffff',
+        initialWallColor = '#e8e0d5',
         onUpdateFloorColor = null,
-        initialFloorColor = '#ffffff'
+        initialFloorColor = '#c8a97e'
     } = props;
     const [widthInput, setWidthInput] = useState(initialWidth);
     const [heightInput, setHeightInput] = useState(initialHeight);
@@ -35,7 +35,7 @@ export default function LeftBar(props) {
     const [fY, setFY] = useState(5)
     const [fW, setFW] = useState(2)
     const [fH, setFH] = useState(2)
-    const [fT, setFT] = useState(0)
+    const [fT, setFT] = useState(2)
 
     useEffect(() => {
         setWidthInput(initialWidth);
@@ -170,6 +170,17 @@ export default function LeftBar(props) {
         if (typeof onUpdateFurniture === 'function') onUpdateFurniture(selectedIndex, { isOpen })
     }
 
+    function rotateSelected(clockwise = true) {
+        if (selectedIndex == null) return
+        const f = furnitureList[selectedIndex]
+        if (!f) return
+
+        const step = Math.PI / 2
+        const current = f.r || 0
+        const next = clockwise ? current + step : current - step
+        if (typeof onUpdateFurniture === 'function') onUpdateFurniture(selectedIndex, { r: next })
+    }
+
     return <>
         <div className="leftbar">
             <details className="leftbarContents makeRoom">
@@ -261,6 +272,11 @@ export default function LeftBar(props) {
                     </div>
                     <div className="button-group">
                         <button id="addFurnitureButton" onClick={handleAddFurniture}>家具を追加</button>
+                    </div>
+                </details>
+                <details className="leftbarContents fixFurniture">
+                    <summary className="summary">家具を修正</summary>
+                    <div className="button-group">
                         <button id="removeFurnitureButton" onClick={handleRemoveFurniture} className="button-danger">全削除</button>
                     </div>
                     {selectedIndex != null && (
@@ -279,6 +295,11 @@ export default function LeftBar(props) {
                                     updateSelected(undefined, undefined, e.target.value);
                                 }} />
                             </div>
+                            <div className="selected-furniture rotate-buttons">
+                                <button onClick={() => rotateSelected(false)} title="左回転 90度">↺ 90°</button>
+                                <button onClick={() => rotateSelected(true)} title="右回転 90度">↻ 90°</button>
+                            </div>
+                            <p className="rotate-help">回転操作: ↺/↻ ボタン または R(右), Shift+R(左)</p>
                         </div>
                     )}
                     {Array.isArray(furnitureList) && furnitureList.length > 0 && (
@@ -288,24 +309,75 @@ export default function LeftBar(props) {
                                 {furnitureList.map((it, idx) => {
                                     const width = parseFloat(widthInput)
                                     const height = parseFloat(heightInput)
-                                    const realX = ((it.x || 0) + 0.5) * width
-                                    const realY = (0.5 - (it.y || 0)) * height
+                                    const centerX = ((it.x || 0) + 0.5) * width
+                                    const centerY = (0.5 - (it.y || 0)) * height
+                                    const rot = it.r || 0
+                                    const cosR = Math.cos(rot)
+                                    const sinR = Math.sin(rot)
+                                    const sizeX = (it.w || 0) * width
+                                    const sizeY = (it.h || 0) * height
+                                    let localXMin = -0.5
+                                    let localXMax = 0.5
+                                    let localYMin = -0.5
+                                    let localYMax = 0.5
+                                    if (it.type === 'chair') {
+                                        localXMin = -0.45
+                                        localXMax = 0.45
+                                        localYMin = -0.45
+                                        localYMax = 0.45
+                                    }
+                                    if (it.type === 'chest' && it.isOpen) {
+                                        localYMax = 0.8
+                                    }
+                                    const corners = [
+                                        [localXMin, localYMin],
+                                        [localXMax, localYMin],
+                                        [localXMin, localYMax],
+                                        [localXMax, localYMax],
+                                    ]
+                                    let minOffsetX = Infinity
+                                    let minOffsetY = Infinity
+                                    for (const [lx, ly] of corners) {
+                                        const x = lx * sizeX
+                                        const y = ly * sizeY
+                                        const rx = x * cosR + y * sinR
+                                        const ry = -x * sinR + y * cosR
+                                        minOffsetX = Math.min(minOffsetX, rx)
+                                        minOffsetY = Math.min(minOffsetY, ry)
+                                    }
+                                    const realX = centerX + minOffsetX
+                                    const realY = centerY + minOffsetY
                                     const realW = (it.w || 0) * width
                                     const realH = (it.h || 0) * height
                                     const realT = (it.t || 0) * 2.4
+                                    const realTy = (it.ty || 0)
                                     return (
-                                        <li key={idx}>
-                                            <strong>{it.type}</strong> — X:{realX.toFixed(2)}m Y:{realY.toFixed(2)}m W:{realW.toFixed(2)}m H:{realH.toFixed(2)}m T:{realT.toFixed(2)}m
-                                            <button onClick={() => { if (typeof onRemoveFurniture === 'function') onRemoveFurniture(idx) }}>削除</button>
+                                        <li
+                                            key={idx}
+                                            className={selectedIndex === idx ? 'is-selected' : ''}
+                                            onClick={() => { if (typeof onSelectFurniture === 'function') onSelectFurniture(idx) }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                    e.preventDefault()
+                                                    if (typeof onSelectFurniture === 'function') onSelectFurniture(idx)
+                                                }
+                                            }}
+                                            role="button"
+                                            tabIndex={0}
+                                        >
+                                            <strong>{it.type}</strong> — X(左端):{realX.toFixed(2)}m Y(上端):{realY.toFixed(2)}m Z:{realTy.toFixed(2)}m W:{realW.toFixed(2)}m H:{realH.toFixed(2)}m T:{realT.toFixed(2)}m
+                                            <button onClick={(e) => {
+                                                e.stopPropagation()
+                                                if (typeof onRemoveFurniture === 'function') onRemoveFurniture(idx)
+                                            }}>
+                                                削除
+                                            </button>
                                         </li>
                                     )
                                 })}
                             </ul>
                         </div>
                     )}
-                </details>
-                <details className="leftbarContents fixFurniture">
-                    <summary className="summary">家具を修正</summary>
                     {making && (
                         <>
                         <div className="input_flex">
