@@ -3,8 +3,8 @@ import { transformWithEsbuild } from 'vite'
 import restart from 'vite-plugin-restart'
 
 export default {
-    root: 'src/',
-    publicDir: '../public/',
+    root: '',
+    publicDir: 'public',
     plugins:
     [
         // Restart server on static/public file change
@@ -35,7 +35,7 @@ export default {
     },
     build:
     {
-        outDir: '../dist', // Output in the dist/ folder
+        outDir: 'dist', // Output in the dist/ folder
         emptyOutDir: true, // Empty the folder first
         sourcemap: true // Add sourcemap
     },
