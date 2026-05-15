@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+    DEFAULT_CUSTOM_POLYGON,
+    MIN_CUSTOM_POLYGON_VERTICES,
     ROOM_SHAPE_OPTIONS,
     getRoomPolygonPoints,
+    normalizeCustomPolygon,
     normalizeRoomInset,
     normalizeRoomInsetPair,
     normalizeRoomShape,
@@ -14,21 +17,28 @@ const LEGACY_PREVIEW_SCALE = 3
 const LEGACY_THRESHOLD = 20
 const MIN_PREVIEW_SCALE = 1.2
 const EPS = 1e-6
+const VERTEX_HIT_RADIUS = 0.35
+const VERTEX_SNAP_STEP = 1
 
 export default function RoomCreateMode({
     width = 10,
     height = 10,
     shape = 'rectangle',
     inset = 0.35,
+    customPolygon = DEFAULT_CUSTOM_POLYGON,
     onShapeChange = () => {},
     onSizeChange = () => {},
     onInsetChange = () => {},
+    onCustomPolygonChange = () => {},
 }) {
     const currentShape = normalizeRoomShape(shape)
     const currentInset = normalizeRoomInsetPair(inset)
+    const currentCustomPolygon = normalizeCustomPolygon(customPolygon)
     const [widthInput, setWidthInput] = useState(String(width))
     const [heightInput, setHeightInput] = useState(String(height))
     const [dragState, setDragState] = useState(null)
+    const [isVertexMode, setIsVertexMode] = useState(false)
+    const [draftVertices, setDraftVertices] = useState([])
     const svgRef = useRef(null)
 
     useEffect(() => {
@@ -41,6 +51,7 @@ export default function RoomCreateMode({
 
     const safeWidth = Math.max(1, Number(width) || 1)
     const safeHeight = Math.max(1, Number(height) || 1)
+    const isCustomShape = currentShape === 'custom-polygon'
     const baseWidthForView = dragState?.startWidth ?? safeWidth
     const baseHeightForView = dragState?.startHeight ?? safeHeight
     const maxSide = Math.max(baseWidthForView, baseHeightForView)
@@ -62,7 +73,7 @@ export default function RoomCreateMode({
     const dragShiftY = isDragging && dragState?.type === 'size' && dragState?.affectsY && dragState?.sideY === 'top'
         ? (dragState.startHeight - safeHeight)
         : 0
-    const polygonPoints = useMemo(() => getRoomPolygonPoints(currentShape, safeWidth, safeHeight, currentInset), [currentShape, safeWidth, safeHeight, currentInset])
+    const polygonPoints = useMemo(() => getRoomPolygonPoints(currentShape, safeWidth, safeHeight, currentInset, currentCustomPolygon), [currentShape, safeWidth, safeHeight, currentInset, currentCustomPolygon])
     const points = useMemo(() => polygonPoints.map((p) => `${p.x},${p.y}`).join(' '), [polygonPoints])
     const edgeHandles = useMemo(() => {
         const centerX = safeWidth / 2
@@ -90,7 +101,7 @@ export default function RoomCreateMode({
             const isOnOuterVertical = vertical && (Math.abs(start.x - minX) < EPS || Math.abs(start.x - maxX) < EPS)
             const isOnOuterHorizontal = horizontal && (Math.abs(start.y - minY) < EPS || Math.abs(start.y - maxY) < EPS)
             const isOuterEdge = (!vertical && !horizontal) || isOnOuterVertical || isOnOuterHorizontal
-            const type = isOuterEdge ? 'size' : 'inset'
+            const type = isCustomShape ? 'none' : (isOuterEdge ? 'size' : 'inset')
 
             const insetAxis = vertical ? 'x' : horizontal ? 'y' : null
             const insetDirection = insetAxis === 'x'
@@ -122,7 +133,7 @@ export default function RoomCreateMode({
                 handleClassName,
             }
         })
-    }, [polygonPoints, safeWidth, safeHeight])
+    }, [polygonPoints, safeWidth, safeHeight, isCustomShape])
     const vLines = useMemo(() => Array.from({ length: Math.ceil(viewWidth) + 1 }, (_, i) => i), [viewWidth])
     const hLines = useMemo(() => Array.from({ length: Math.ceil(viewHeight) + 1 }, (_, i) => i), [viewHeight])
 
@@ -135,6 +146,8 @@ export default function RoomCreateMode({
     }
 
     const startDrag = (handle, event) => {
+        if (isVertexMode) return
+        if (handle.type === 'none') return
         const point = getLocalPoint(event.clientX, event.clientY)
         setDragState({
             type: handle.type,
@@ -227,11 +240,68 @@ export default function RoomCreateMode({
         }
     }, [dragState, onSizeChange, viewWidth, viewHeight, offsetX, offsetY])
 
+    const toNormalizedPoint = (localPoint) => ({
+        x: Math.max(0, Math.min(1, localPoint.x / Math.max(1, safeWidth))),
+        y: Math.max(0, Math.min(1, localPoint.y / Math.max(1, safeHeight))),
+    })
+
+    const snapToStep = (value, step, max) => {
+        const snapped = Math.round(value / step) * step
+        return Math.max(0, Math.min(max, snapped))
+    }
+
+    const draftPointsInRoom = useMemo(
+        () => draftVertices.map((p) => ({ x: p.x * safeWidth, y: p.y * safeHeight })),
+        [draftVertices, safeWidth, safeHeight]
+    )
+
+    const draftPointsAttr = useMemo(
+        () => draftPointsInRoom.map((p) => `${p.x},${p.y}`).join(' '),
+        [draftPointsInRoom]
+    )
+
+    const handleStartVertexMode = () => {
+        // 完全リセットしてから頂点打ちモードへ。
+        setDraftVertices([])
+        setIsVertexMode(true)
+        setDragState(null)
+    }
+
+    const handlePreviewClick = (event) => {
+        if (!isVertexMode) return
+        const point = getLocalPoint(event.clientX, event.clientY)
+        if (!point) return
+
+        const roomPoint = {
+            x: snapToStep(point.x, VERTEX_SNAP_STEP, safeWidth),
+            y: snapToStep(point.y, VERTEX_SNAP_STEP, safeHeight),
+        }
+        const normalized = toNormalizedPoint(roomPoint)
+
+        const hitIndex = draftPointsInRoom.findIndex((v) => {
+            const dx = v.x - roomPoint.x
+            const dy = v.y - roomPoint.y
+            return Math.hypot(dx, dy) <= VERTEX_HIT_RADIUS
+        })
+
+        if (hitIndex !== -1) {
+            if (draftVertices.length >= MIN_CUSTOM_POLYGON_VERTICES) {
+                onShapeChange('custom-polygon')
+                onCustomPolygonChange(draftVertices)
+                setIsVertexMode(false)
+            }
+            return
+        }
+
+        setDraftVertices((prev) => [...prev, normalized])
+    }
+
     return (
         <div className="room room-create-mode">
             <aside className="room-create-sidebar">
                 <h3>部屋形状</h3>
                 <p className="room-create-help">左で形状を選び、右の図でドラッグしてサイズを直感的に編集できます。</p>
+                <button type="button" className="room-vertex-start-button" onClick={handleStartVertexMode}>頂点を打つ</button>
                 <div className="room-shape-list">
                     {ROOM_SHAPE_OPTIONS.map((option) => (
                         <button
@@ -287,38 +357,70 @@ export default function RoomCreateMode({
                             <line key={`v-${x}`} x1={x} y1="0" x2={x} y2={viewHeight} />
                         ))}
                     </g>
-                    <g transform={`translate(${offsetX + dragShiftX} ${offsetY + dragShiftY})`}>
-                        <polygon points={points} fill="#ffffff" stroke="#000000" strokeWidth="0.15" />
-                        {edgeHandles.map((edge) => (
-                            <line
-                                key={`${edge.key}-line`}
-                                x1={edge.x1}
-                                y1={edge.y1}
-                                x2={edge.x2}
-                                y2={edge.y2}
-                                stroke="#3772ff"
-                                strokeDasharray="0.25 0.2"
-                                strokeWidth="0.06"
-                                opacity="0.7"
+                    <g transform={`translate(${offsetX + dragShiftX} ${offsetY + dragShiftY})`} onClick={handlePreviewClick}>
+                        {isVertexMode && (
+                            <rect
+                                x="0"
+                                y="0"
+                                width={safeWidth}
+                                height={safeHeight}
+                                fill="rgba(0,0,0,0.001)"
                             />
-                        ))}
+                        )}
 
-                        {edgeHandles.map((edge) => (
+                        {!isVertexMode && (
+                            <>
+                                <polygon points={points} fill="#ffffff" stroke="#000000" strokeWidth="0.15" />
+                                {edgeHandles.map((edge) => (
+                                    <line
+                                        key={`${edge.key}-line`}
+                                        x1={edge.x1}
+                                        y1={edge.y1}
+                                        x2={edge.x2}
+                                        y2={edge.y2}
+                                        stroke="#3772ff"
+                                        strokeDasharray="0.25 0.2"
+                                        strokeWidth="0.06"
+                                        opacity="0.7"
+                                    />
+                                ))}
+
+                                {edgeHandles.map((edge) => (
+                                    <circle
+                                        key={`${edge.key}-handle`}
+                                        className={edge.handleClassName}
+                                        cx={edge.mx}
+                                        cy={edge.my}
+                                        r={HANDLE_RADIUS}
+                                        onPointerDown={(e) => {
+                                            e.preventDefault()
+                                            startDrag(edge, e)
+                                        }}
+                                    />
+                                ))}
+                            </>
+                        )}
+
+                        {isVertexMode && draftVertices.length >= 2 && (
+                            <polyline points={draftPointsAttr} fill="none" stroke="#d64045" strokeWidth="0.1" />
+                        )}
+
+                        {isVertexMode && draftPointsInRoom.map((p, idx) => (
                             <circle
-                                key={`${edge.key}-handle`}
-                                className={edge.handleClassName}
-                                cx={edge.mx}
-                                cy={edge.my}
-                                r={HANDLE_RADIUS}
-                                onPointerDown={(e) => {
-                                    e.preventDefault()
-                                    startDrag(edge, e)
-                                }}
+                                key={`draft-${idx}`}
+                                className="room-draft-vertex"
+                                cx={p.x}
+                                cy={p.y}
+                                r={HANDLE_RADIUS + 0.02}
                             />
                         ))}
                     </g>
                 </svg>
-                <p className="room-create-caption">外周辺: 部屋サイズ変更 / 内側辺: へこみ量を調整</p>
+                <p className="room-create-caption">
+                    {isVertexMode
+                        ? 'クリックで頂点追加。既に置いた頂点をもう一度クリックで確定。'
+                        : '外周辺: 部屋サイズ変更 / 内側辺: へこみ量を調整'}
+                </p>
             </section>
         </div>
     )

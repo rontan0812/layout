@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import LeftBar from './LeftBar'
 import Room from './Room'
-import { DEFAULT_ROOM_INSET, normalizeRoomInsetPair, normalizeRoomShape } from './roomShape'
+import { DEFAULT_CUSTOM_POLYGON, DEFAULT_ROOM_INSET, normalizeCustomPolygon, normalizeRoomInsetPair, normalizeRoomShape } from './roomShape'
 
 const root = ReactDOM.createRoot(document.querySelector('#root'))
 
@@ -44,6 +44,11 @@ export default function App() {
         return normalizeRoomInsetPair(saved)
     })
 
+    const [roomCustomPolygon, setRoomCustomPolygon] = useState(() => {
+        const saved = localStorage.getItem('roomCustomPolygon')
+        return normalizeCustomPolygon(saved)
+    })
+
     const handleCreate = (width, height) => {
         // 既に間取り確定済みなら何もしない
         if (isMakingRoom) return;
@@ -75,6 +80,7 @@ export default function App() {
             localStorage.removeItem('roomHeight')
             localStorage.removeItem('roomShape')
             localStorage.removeItem('roomInset')
+            localStorage.removeItem('roomCustomPolygon')
             localStorage.removeItem('furnitureList')
         } catch (e) {}
         setRoomVisible(false)
@@ -83,6 +89,7 @@ export default function App() {
         setIsMakingRoom(false)
         setRoomShape('rectangle')
         setRoomInset({ x: DEFAULT_ROOM_INSET, y: DEFAULT_ROOM_INSET })
+        setRoomCustomPolygon(DEFAULT_CUSTOM_POLYGON.map((p) => ({ ...p })))
         setMakeMode(false)
         setFurnitureList([])
         setSelectedIndex(null)
@@ -112,6 +119,14 @@ export default function App() {
         setRoomInset(safeInset)
         try {
             localStorage.setItem('roomInset', JSON.stringify(safeInset))
+        } catch (e) {}
+    }
+
+    const handleUpdateRoomCustomPolygon = (nextPolygon) => {
+        const safePolygon = normalizeCustomPolygon(nextPolygon)
+        setRoomCustomPolygon(safePolygon)
+        try {
+            localStorage.setItem('roomCustomPolygon', JSON.stringify(safePolygon))
         } catch (e) {}
     }
 
@@ -230,9 +245,11 @@ export default function App() {
                     height={roomHeight} 
                     roomShape={roomShape}
                     roomInset={roomInset}
+                    roomCustomPolygon={roomCustomPolygon}
                     onUpdateRoomShape={handleUpdateRoomShape}
                     onUpdateRoomSize={handleUpdateRoomSize}
                     onUpdateRoomInset={handleUpdateRoomInset}
+                    onUpdateRoomCustomPolygon={handleUpdateRoomCustomPolygon}
                     furnitureList={furnitureList} 
                     selectedIndex={selectedIndex} 
                     onSelectFurniture={handleSelectFurniture} 

@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { useRef, useEffect, useState, useMemo } from 'react'
 import { PerspectiveCamera, TransformControls, Line } from '@react-three/drei'
 import RoomCreateMode from './RoomCreateMode'
-import { getRoomPolygonPoints, normalizeRoomInsetPair, normalizeRoomShape } from './roomShape'
+import { DEFAULT_CUSTOM_POLYGON, getRoomPolygonPoints, normalizeCustomPolygon, normalizeRoomInsetPair, normalizeRoomShape } from './roomShape'
 
 const normalizeRightAngle = (angle) => {
     const twoPi = Math.PI * 2
@@ -574,10 +574,11 @@ const Furniture2DItem = ({ furniture, index, planeWidth, planeHeight, roomPolygo
     )
 }
 
-export default function Room({ width = 10, height = 10, roomShape = 'rectangle', roomInset = { x: 0.35, y: 0.35 }, onUpdateRoomShape = () => {}, onUpdateRoomSize = () => {}, onUpdateRoomInset = () => {}, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, onUpdateFurniture = () => {}, switchDim = false, wallColor = '#ffffff', floorColor = '#ffffff', isMakingMode = false }) {
+export default function Room({ width = 10, height = 10, roomShape = 'rectangle', roomInset = { x: 0.35, y: 0.35 }, roomCustomPolygon = DEFAULT_CUSTOM_POLYGON, onUpdateRoomShape = () => {}, onUpdateRoomSize = () => {}, onUpdateRoomInset = () => {}, onUpdateRoomCustomPolygon = () => {}, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, onUpdateFurniture = () => {}, switchDim = false, wallColor = '#ffffff', floorColor = '#ffffff', isMakingMode = false }) {
     const aspect = (height === 0) ? 1 : (width / height)
     const normalizedRoomShape = normalizeRoomShape(roomShape)
     const normalizedRoomInset = normalizeRoomInsetPair(roomInset)
+    const normalizedCustomPolygon = normalizeCustomPolygon(roomCustomPolygon)
     const isRectangularRoom = normalizedRoomShape === 'rectangle'
 
     if (isMakingMode) {
@@ -587,9 +588,11 @@ export default function Room({ width = 10, height = 10, roomShape = 'rectangle',
                 height={height}
                 shape={normalizedRoomShape}
                 inset={normalizedRoomInset}
+                customPolygon={normalizedCustomPolygon}
                 onShapeChange={onUpdateRoomShape}
                 onSizeChange={onUpdateRoomSize}
                 onInsetChange={onUpdateRoomInset}
+                onCustomPolygonChange={onUpdateRoomCustomPolygon}
             />
         )
     }
@@ -603,7 +606,7 @@ export default function Room({ width = 10, height = 10, roomShape = 'rectangle',
         planeHeight = longSide
         planeWidth = longSide * aspect
     }
-    const roomPolygon = useMemo(() => getRoomPolygonPoints(normalizedRoomShape, planeWidth, planeHeight, normalizedRoomInset), [normalizedRoomShape, planeWidth, planeHeight, normalizedRoomInset])
+    const roomPolygon = useMemo(() => getRoomPolygonPoints(normalizedRoomShape, planeWidth, planeHeight, normalizedRoomInset, normalizedCustomPolygon), [normalizedRoomShape, planeWidth, planeHeight, normalizedRoomInset, normalizedCustomPolygon])
     const roomPolygon2D = useMemo(() => roomPolygon.map((p) => ({ x: p.x, y: planeHeight - p.y })), [roomPolygon, planeHeight])
     const roomShape2D = useMemo(() => {
         const shape = new THREE.Shape()
@@ -656,11 +659,16 @@ export default function Room({ width = 10, height = 10, roomShape = 'rectangle',
     const visibleWallSegments = useMemo(() => {
         if (isRectangularRoom) return wallSegments
 
-        const area2 = roomPolygon.reduce((acc, p, i) => {
-            const next = roomPolygon[(i + 1) % roomPolygon.length]
-            return acc + (p.x * next.y - next.x * p.y)
-        }, 0)
-        const isCCW = area2 >= 0
+        const bounds = getPolygonBounds(roomPolygon)
+        const centerCandidate = {
+            x: (bounds.minX + bounds.maxX) / 2,
+            y: (bounds.minY + bounds.maxY) / 2,
+        }
+        const interiorPoint = findNearestValidPoint(
+            centerCandidate,
+            roomPolygon,
+            (x, y) => pointInPolygon(x, y, roomPolygon)
+        )
 
         const centerX = planeWidth / 2
         const centerZ = planeHeight / 2
@@ -679,10 +687,17 @@ export default function Room({ width = 10, height = 10, roomShape = 'rectangle',
             const toCameraX = cameraX - midX
             const toCameraZ = cameraZ - midZ
 
-            // Outward normal in XZ plane depends on winding direction.
-            const outwardX = (isCCW ? dz : -dz) / len
-            const outwardZ = (isCCW ? -dx : dx) / len
-            const facingCamera = outwardX * toCameraX + outwardZ * toCameraZ > 0
+            const toInsideX = interiorPoint.x - midX
+            const toInsideZ = interiorPoint.y - midZ
+            const normal1X = dz / len
+            const normal1Z = -dx / len
+            const normal2X = -normal1X
+            const normal2Z = -normal1Z
+            const dot1Inside = normal1X * toInsideX + normal1Z * toInsideZ
+            const dot2Inside = normal2X * toInsideX + normal2Z * toInsideZ
+            const outwardX = dot1Inside < dot2Inside ? normal1X : normal2X
+            const outwardZ = dot1Inside < dot2Inside ? normal1Z : normal2Z
+            const facingCamera = outwardX * toCameraX + outwardZ * toCameraZ > 1e-6
 
             return !facingCamera
         })

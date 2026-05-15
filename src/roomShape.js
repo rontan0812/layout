@@ -7,12 +7,47 @@ export const ROOM_SHAPE_OPTIONS = [
 export const DEFAULT_ROOM_INSET = 0.35
 export const MIN_ROOM_INSET = 0.1
 export const MAX_ROOM_INSET = 0.8
+export const MIN_CUSTOM_POLYGON_VERTICES = 3
+export const DEFAULT_CUSTOM_POLYGON = [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 1, y: 1 },
+    { x: 0, y: 1 },
+]
 
 const isKnownShape = (shapeId) => ROOM_SHAPE_OPTIONS.some((option) => option.id === shapeId)
 
 export const normalizeRoomShape = (shapeId) => {
+    if (shapeId === 'custom-polygon') return shapeId
     if (isKnownShape(shapeId)) return shapeId
     return 'rectangle'
+}
+
+const clamp01 = (v) => Math.max(0, Math.min(1, v))
+
+export const normalizeCustomPolygon = (value) => {
+    let points = value
+    if (typeof value === 'string') {
+        try {
+            points = JSON.parse(value)
+        } catch (_) {
+            points = null
+        }
+    }
+
+    if (!Array.isArray(points)) {
+        return DEFAULT_CUSTOM_POLYGON.map((p) => ({ ...p }))
+    }
+
+    const normalized = points
+        .map((p) => ({ x: clamp01(Number(p?.x)), y: clamp01(Number(p?.y)) }))
+        .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+
+    if (normalized.length < MIN_CUSTOM_POLYGON_VERTICES) {
+        return DEFAULT_CUSTOM_POLYGON.map((p) => ({ ...p }))
+    }
+
+    return normalized
 }
 
 export const normalizeRoomInset = (insetValue) => {
@@ -48,11 +83,15 @@ export const normalizeRoomInsetPair = (insetValue) => {
     return { x: n, y: n }
 }
 
-export const getNormalizedRoomPolygon = (shapeId, insetValue = DEFAULT_ROOM_INSET) => {
+export const getNormalizedRoomPolygon = (shapeId, insetValue = DEFAULT_ROOM_INSET, customPolygon = DEFAULT_CUSTOM_POLYGON) => {
     const shape = normalizeRoomShape(shapeId)
     const inset = normalizeRoomInsetPair(insetValue)
     const cutX = inset.x
     const cutY = inset.y
+
+    if (shape === 'custom-polygon') {
+        return normalizeCustomPolygon(customPolygon)
+    }
 
     if (shape === 'l-left') {
         return [
@@ -84,10 +123,10 @@ export const getNormalizedRoomPolygon = (shapeId, insetValue = DEFAULT_ROOM_INSE
     ]
 }
 
-export const getRoomPolygonPoints = (shapeId, width, height, insetValue = DEFAULT_ROOM_INSET) => {
+export const getRoomPolygonPoints = (shapeId, width, height, insetValue = DEFAULT_ROOM_INSET, customPolygon = DEFAULT_CUSTOM_POLYGON) => {
     const w = Math.max(1, Number(width) || 1)
     const h = Math.max(1, Number(height) || 1)
-    const normalized = getNormalizedRoomPolygon(shapeId, insetValue)
+    const normalized = getNormalizedRoomPolygon(shapeId, insetValue, customPolygon)
 
     return normalized.map((p) => ({
         x: p.x * w,

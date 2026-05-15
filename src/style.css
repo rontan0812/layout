@@ -249,6 +249,16 @@ button{
     color: #4c4335;
 }
 
+.room-vertex-start-button{
+    width: 100%;
+    margin-bottom: 10px;
+    background: #d64045;
+    color: #ffffff;
+    border: 1px solid #9f2830;
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+
 .room-shape-list{
     display: flex;
     flex-direction: column;
@@ -315,6 +325,12 @@ button{
 .room-drag-handle-inset{
     fill: #e37a22;
     stroke: #ffffff;
+}
+
+.room-draft-vertex{
+    fill: #d64045;
+    stroke: #ffffff;
+    stroke-width: 0.08;
 }
 
 .room-create-caption{
