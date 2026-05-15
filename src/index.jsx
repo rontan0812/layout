@@ -4,6 +4,7 @@ import { useState } from 'react'
 
 import LeftBar from './LeftBar'
 import Room from './Room'
+import { normalizeRoomShape } from './roomShape'
 
 const root = ReactDOM.createRoot(document.querySelector('#root'))
 
@@ -33,7 +34,14 @@ export default function App() {
 
     const [makeMode, setMakeMode] = useState(false);
 
+    const [roomShape, setRoomShape] = useState(() => {
+        const saved = localStorage.getItem('roomShape')
+        return normalizeRoomShape(saved)
+    })
+
     const handleCreate = (width, height) => {
+        // 既に間取り確定済みなら何もしない
+        if (isMakingRoom) return;
         setRoomWidth(width)
         setRoomHeight(height)
         setRoomVisible(true)
@@ -42,13 +50,17 @@ export default function App() {
             localStorage.setItem('roomHeight', String(height))
         } catch (e) {
         }
+        setIsMakingRoom(true)
     }
 
+    // handleStartはリセット時のみ有効
     const handleStart = (making) => {
-        setIsMakingRoom(Boolean(making))
+        if (!making) setIsMakingRoom(false)
     }
 
+    // 間取り確定後は作成モードに遷移不可
     const handleMode = (mode) => {
+        if (isMakingRoom) return;
         setMakeMode(!mode);
     }
 
@@ -56,11 +68,33 @@ export default function App() {
         try {
             localStorage.removeItem('roomWidth')
             localStorage.removeItem('roomHeight')
+            localStorage.removeItem('roomShape')
         } catch (e) {}
         setRoomVisible(false)
         setRoomWidth(10)
         setRoomHeight(10)
         setIsMakingRoom(false)
+        setRoomShape('rectangle')
+        setMakeMode(false)
+    }
+
+    const handleUpdateRoomShape = (shapeId) => {
+        const next = normalizeRoomShape(shapeId)
+        setRoomShape(next)
+        try {
+            localStorage.setItem('roomShape', next)
+        } catch (e) {}
+    }
+
+    const handleUpdateRoomSize = (nextWidth, nextHeight) => {
+        const safeWidth = Math.max(1, parseInt(nextWidth, 10) || 1)
+        const safeHeight = Math.max(1, parseInt(nextHeight, 10) || 1)
+        setRoomWidth(safeWidth)
+        setRoomHeight(safeHeight)
+        try {
+            localStorage.setItem('roomWidth', String(safeWidth))
+            localStorage.setItem('roomHeight', String(safeHeight))
+        } catch (e) {}
     }
 
 
@@ -135,7 +169,7 @@ export default function App() {
 
     const [floorColor, setFloorColor] = useState(() => {
         const v = localStorage.getItem('floorColor')
-        return v || '#c8a97e'
+        return v || '#8b5a2b'
     })
 
     const handleUpdateFloorColor = (color) => {
@@ -144,8 +178,6 @@ export default function App() {
             localStorage.setItem('floorColor', color)
         } catch (e) {}
     }
-
-
 
     
 
@@ -178,6 +210,9 @@ export default function App() {
                 <Room 
                     width={roomWidth} 
                     height={roomHeight} 
+                    roomShape={roomShape}
+                    onUpdateRoomShape={handleUpdateRoomShape}
+                    onUpdateRoomSize={handleUpdateRoomSize}
                     furnitureList={furnitureList} 
                     selectedIndex={selectedIndex} 
                     onSelectFurniture={handleSelectFurniture} 

@@ -22,7 +22,7 @@ export default function LeftBar(props) {
         onUpdateWallColor = null,
         initialWallColor = '#e8e0d5',
         onUpdateFloorColor = null,
-        initialFloorColor = '#c8a97e'
+        initialFloorColor = '#8b5a2b'
     } = props;
     const [widthInput, setWidthInput] = useState(initialWidth);
     const [heightInput, setHeightInput] = useState(initialHeight);
@@ -195,7 +195,7 @@ export default function LeftBar(props) {
                         } else {
                             if (isMakingMode && typeof onMode === 'function') onMode(true);
                         }
-                    }} disabled={making}>
+                    }} disabled={making || making === true}>
                         <option value="numeric">数値入力</option>
                         <option value="drawing">図で作成</option>
                     </select>
@@ -211,6 +211,7 @@ export default function LeftBar(props) {
                                 value={widthInput}
                                 onChange={(e) => setWidthInput(e.target.value)}
                                 id="widthInput"
+                                disabled={making || making === true}
                             />
                         </div>
                         <div className="input_flex">
@@ -222,19 +223,17 @@ export default function LeftBar(props) {
                                 value={heightInput}
                                 onChange={(e) => setHeightInput(e.target.value)}
                                 id="heightInput"
+                                disabled={making || making === true}
                             />
                         </div>
                     </>
                 )}
                 <div className="button-group">
-                    {making ? (
-                        <>
-                            <button id="updateRoomButton" onClick={handleUpdateRoom}>修正を保存</button>
-                            <button id="makeRoomModeChangeButton" onClick={changeToMakeRoom}>{isMakingMode ? "戻る" : "作成モード"}</button>
-                        </>
-                    ) : (
+                    {/* 間取り確定後はボタン非表示 */}
+                    {!making && (
                         <button id="makeRoomButton" onClick={handleMakeRoom}>作成</button>
                     )}
+                    {/* making=true なら修正・作成モードボタンを非表示にする */}
                 </div>
             </details>
             {!isMakingMode && making && (

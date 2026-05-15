@@ -1,13 +1,134 @@
 import { Canvas, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
-import { useRef, useEffect } from 'react'
-import { PerspectiveCamera, TransformControls } from '@react-three/drei'
+import { useRef, useEffect, useState, useMemo } from 'react'
+import { PerspectiveCamera, TransformControls, Line } from '@react-three/drei'
+import RoomCreateMode from './RoomCreateMode'
+import { getRoomPolygonPoints, normalizeRoomShape } from './roomShape'
 
 const normalizeRightAngle = (angle) => {
     const twoPi = Math.PI * 2
     let value = angle % twoPi
     if (value < 0) value += twoPi
     return value
+}
+
+const pointInPolygon = (x, y, polygon) => {
+    if (!Array.isArray(polygon) || polygon.length < 3) return true
+
+    let inside = false
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].x
+        const yi = polygon[i].y
+        const xj = polygon[j].x
+        const yj = polygon[j].y
+
+        const intersects = ((yi > y) !== (yj > y))
+            && (x < ((xj - xi) * (y - yi)) / ((yj - yi) || 1e-9) + xi)
+
+        if (intersects) inside = !inside
+    }
+
+    return inside
+}
+
+const getPolygonBounds = (polygon) => {
+    if (!Array.isArray(polygon) || polygon.length === 0) {
+        return { minX: 0, maxX: 0, minY: 0, maxY: 0 }
+    }
+
+    let minX = Infinity
+    let maxX = -Infinity
+    let minY = Infinity
+    let maxY = -Infinity
+
+    for (const point of polygon) {
+        minX = Math.min(minX, point.x)
+        maxX = Math.max(maxX, point.x)
+        minY = Math.min(minY, point.y)
+        maxY = Math.max(maxY, point.y)
+    }
+
+    return { minX, maxX, minY, maxY }
+}
+
+const getPolygonCentroid = (polygon) => {
+    if (!Array.isArray(polygon) || polygon.length === 0) {
+        return { x: 0, y: 0 }
+    }
+
+    let twiceArea = 0
+    let centerX = 0
+    let centerY = 0
+
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const p1 = polygon[j]
+        const p2 = polygon[i]
+        const cross = p1.x * p2.y - p2.x * p1.y
+        twiceArea += cross
+        centerX += (p1.x + p2.x) * cross
+        centerY += (p1.y + p2.y) * cross
+    }
+
+    if (Math.abs(twiceArea) < 1e-9) {
+        const fallback = polygon[0]
+        return { x: fallback.x, y: fallback.y }
+    }
+
+    return {
+        x: centerX / (3 * twiceArea),
+        y: centerY / (3 * twiceArea),
+    }
+}
+
+const findNearestValidPoint = (candidate, polygon, isValid) => {
+    if (isValid(candidate.x, candidate.y)) return candidate
+
+    const anchor = getPolygonCentroid(polygon)
+    if (isValid(anchor.x, anchor.y)) {
+        let low = 0
+        let high = 1
+        let best = { x: anchor.x, y: anchor.y }
+
+        for (let i = 0; i < 18; i += 1) {
+            const mid = (low + high) / 2
+            const x = candidate.x + (anchor.x - candidate.x) * mid
+            const y = candidate.y + (anchor.y - candidate.y) * mid
+
+            if (isValid(x, y)) {
+                best = { x, y }
+                high = mid
+            } else {
+                low = mid
+            }
+        }
+
+        if (isValid(best.x, best.y)) return best
+    }
+
+    const bounds = getPolygonBounds(polygon)
+    let best = null
+    let bestDistance = Infinity
+    const steps = 12
+
+    for (let ix = 0; ix <= steps; ix += 1) {
+        const x = bounds.minX + ((bounds.maxX - bounds.minX) * ix) / steps
+        for (let iy = 0; iy <= steps; iy += 1) {
+            const y = bounds.minY + ((bounds.maxY - bounds.minY) * iy) / steps
+            if (!isValid(x, y)) continue
+            const distance = (x - candidate.x) ** 2 + (y - candidate.y) ** 2
+            if (distance < bestDistance) {
+                best = { x, y }
+                bestDistance = distance
+            }
+        }
+    }
+
+    if (best) return best
+
+    return {
+        x: Math.max(bounds.minX, Math.min(bounds.maxX, candidate.x)),
+        y: Math.max(bounds.minY, Math.min(bounds.maxY, candidate.y)),
+    }
 }
 
 const MeshWithEdges = ({ position, scale, material }) => (
@@ -133,7 +254,7 @@ const FurnitureMesh = ({ type, color, selected, isOpen }) => {
     )
 }
 
-const Furniture3DItem = ({ furniture, index, planeWidth, planeHeight, roomHeight, selected, onSelect, onUpdate }) => {
+const Furniture3DItem = ({ furniture, index, planeWidth, planeHeight, roomHeight, roomPolygon, selected, onSelect, onUpdate, interactionLockRef }) => {
     const groupRef = useRef()
     const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5', chest: '#5d4037' }
     const color = furniture.color || colorMap[furniture.type] || '#999'
@@ -144,8 +265,10 @@ const Furniture3DItem = ({ furniture, index, planeWidth, planeHeight, roomHeight
     
     const posX = (furniture.x + 0.5) * planeWidth
     const posY = h / 2 + (furniture.ty || 0)
-    const posZ = (0.5 - furniture.y) * planeHeight
+    const posZ = (furniture.y + 0.5) * planeHeight
     const rot = furniture.r || 0
+    const hitboxDepth = furniture.type === 'chest' && furniture.isOpen ? d * 1.3 : d
+    const footprintPolygon = Array.isArray(roomPolygon) ? roomPolygon : []
 
     const getLocalFootprint = () => {
         if (furniture.type === 'chair') {
@@ -193,6 +316,31 @@ const Furniture3DItem = ({ furniture, index, planeWidth, planeHeight, roomHeight
         return { minOffsetX, maxOffsetX, minOffsetZ, maxOffsetZ }
     }
 
+    const isFootprintInsideRoom = (centerX, centerZ) => {
+        if (footprintPolygon.length < 3) return true
+
+        const r = furniture.r || 0
+        const cosR = Math.cos(r)
+        const sinR = Math.sin(r)
+        const sx = (furniture.w || 0.1) * planeWidth
+        const sz = (furniture.h || 0.1) * planeHeight
+        const { minX: localXMin, maxX: localXMax, minZ: localZMin, maxZ: localZMax } = getLocalFootprint()
+        const localCorners = [
+            [localXMin, localZMin],
+            [localXMax, localZMin],
+            [localXMin, localZMax],
+            [localXMax, localZMax],
+        ]
+
+        return localCorners.every(([lx, lz]) => {
+            const x = lx * sx
+            const z = lz * sz
+            const rx = x * cosR + z * sinR
+            const rz = -x * sinR + z * cosR
+            return pointInPolygon(centerX + rx, centerZ + rz, footprintPolygon)
+        })
+    }
+
     const clampPosition = () => {
         if (!groupRef.current) return
         const pos = groupRef.current.position
@@ -207,19 +355,45 @@ const Furniture3DItem = ({ furniture, index, planeWidth, planeHeight, roomHeight
 
         pos.x = Math.max(minCenterX, Math.min(maxCenterX, pos.x))
         pos.z = Math.max(minCenterZ, Math.min(maxCenterZ, pos.z))
+
+        const constrained = findNearestValidPoint(
+            { x: pos.x, y: pos.z },
+            footprintPolygon,
+            isFootprintInsideRoom
+        )
+        pos.x = constrained.x
+        pos.z = constrained.y
     }
+
+    const initialClamped = findNearestValidPoint(
+        { x: posX, y: posZ },
+        footprintPolygon,
+        isFootprintInsideRoom
+    )
 
     return (
         <>
             <group 
                 ref={groupRef} 
-                position={[posX, posY, posZ]} 
+                position={[initialClamped.x, posY, initialClamped.y]} 
                 rotation={[0, rot, 0]} 
                 onPointerDown={(e) => {
                     e.stopPropagation()
+                    if (interactionLockRef?.current) return
                     if (!selected) onSelect(index)
                 }}
             >
+                <mesh
+                    scale={[w, h, hitboxDepth]}
+                    onPointerDown={(e) => {
+                        e.stopPropagation()
+                        if (interactionLockRef?.current) return
+                        if (!selected) onSelect(index)
+                    }}
+                >
+                    <boxGeometry args={[1, 1, 1]} />
+                    <meshBasicMaterial transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
+                </mesh>
                 <group scale={[w, h, d]}>
                     <FurnitureMesh type={furniture.type} color={color} selected={selected} isOpen={furniture.isOpen} />
                 </group>
@@ -229,13 +403,17 @@ const Furniture3DItem = ({ furniture, index, planeWidth, planeHeight, roomHeight
                     object={groupRef} 
                     mode="translate"
                     showY={false}
+                    onMouseDown={() => {
+                        if (interactionLockRef) interactionLockRef.current = true
+                    }}
                     onChange={() => { clampPosition() }}
                     onMouseUp={() => {
+                        if (interactionLockRef) interactionLockRef.current = false
                         clampPosition()
                         if (groupRef.current) {
                             const { x, z } = groupRef.current.position
                             const newX = x / planeWidth - 0.5
-                            const newY = 0.5 - z / planeHeight
+                            const newY = z / planeHeight - 0.5
                             if (typeof onUpdate === 'function') onUpdate(index, { x: newX, y: newY })
                         }
                     }}
@@ -245,20 +423,21 @@ const Furniture3DItem = ({ furniture, index, planeWidth, planeHeight, roomHeight
     )
 }
 
-const Furniture2DItem = ({ furniture, index, planeWidth, planeHeight, selected, onSelect, onUpdate }) => {
+const Furniture2DItem = ({ furniture, index, planeWidth, planeHeight, roomPolygon, selected, onSelect, onUpdate, interactionLockRef }) => {
     const groupRef = useRef()
     const colorMap = { sofa: '#7a4f2f', table: '#8b8b8b', chair: '#4a6fa5', chest: '#5d4037' }
     const color = furniture.color || colorMap[furniture.type] || '#999'
     const posX = (furniture.x + 0.5) * planeWidth
     const posY = (0.5 - furniture.y) * planeHeight
     const rot = furniture.r || 0
+    const footprintPolygon = Array.isArray(roomPolygon) ? roomPolygon : []
 
     const getLocalFootprint2D = () => {
         if (furniture.type === 'chair') {
             return { minX: -0.5, maxX: 0.5, minY: -0.5, maxY: 0.5 }
         }
         if (furniture.type === 'chest' && furniture.isOpen) {
-            return { minX: -0.5, maxX: 0.5, minY: -0.8, maxY: 0.5 }
+            return { minX: -0.5, maxX: 0.5, minY: -0.5, maxY: 0.8 }
         }
         return { minX: -0.5, maxX: 0.5, minY: -0.5, maxY: 0.5 }
     }
@@ -285,8 +464,9 @@ const Furniture2DItem = ({ furniture, index, planeWidth, planeHeight, selected, 
         for (const [lx, ly] of corners) {
             const x = lx * sx
             const y = ly * sy
-            const rx = x * cosR - y * sinR
-            const ry = x * sinR + y * cosR
+            // Match 3D Y-axis rotation projected onto 2D X-Y plane.
+            const rx = x * cosR + y * sinR
+            const ry = -x * sinR + y * cosR
             minOffsetX = Math.min(minOffsetX, rx)
             maxOffsetX = Math.max(maxOffsetX, rx)
             minOffsetY = Math.min(minOffsetY, ry)
@@ -298,16 +478,28 @@ const Furniture2DItem = ({ furniture, index, planeWidth, planeHeight, selected, 
 
     const clampCenter2D = (x, y) => {
         const { minOffsetX, maxOffsetX, minOffsetY, maxOffsetY } = getBounds2D()
-        // Keep a tiny inset to avoid visual spill caused by line width / float precision.
-        const inset = 0.03
+        const inset = 0
         const minCenterX = -minOffsetX + inset
         const maxCenterX = planeWidth - maxOffsetX - inset
         const minCenterY = -minOffsetY + inset
         const maxCenterY = planeHeight - maxOffsetY - inset
-        return {
+        const clamped = {
             x: Math.max(minCenterX, Math.min(maxCenterX, x)),
             y: Math.max(minCenterY, Math.min(maxCenterY, y)),
         }
+
+        if (footprintPolygon.length < 3) return clamped
+
+        return findNearestValidPoint(clamped, footprintPolygon, (centerX, centerY) => {
+            const { minOffsetX: testMinX, maxOffsetX: testMaxX, minOffsetY: testMinY, maxOffsetY: testMaxY } = getBounds2D()
+            const corners = [
+                [centerX + testMinX, centerY + testMinY],
+                [centerX + testMaxX, centerY + testMinY],
+                [centerX + testMinX, centerY + testMaxY],
+                [centerX + testMaxX, centerY + testMaxY],
+            ]
+            return corners.every(([x, y]) => pointInPolygon(x, y, footprintPolygon))
+        })
     }
 
     const clampPosition2D = () => {
@@ -326,9 +518,10 @@ const Furniture2DItem = ({ furniture, index, planeWidth, planeHeight, selected, 
             <group
                 ref={groupRef}
                 position={[initialClamped.x, initialClamped.y, 0.05]}
-                rotation={[0, 0, rot]}
+                rotation={[0, 0, -rot]}
                 onPointerDown={(e) => {
                     e.stopPropagation()
+                    if (interactionLockRef?.current) return
                     if (!selected) onSelect(index)
                 }}
             >
@@ -361,8 +554,12 @@ const Furniture2DItem = ({ furniture, index, planeWidth, planeHeight, selected, 
                     object={groupRef}
                     mode="translate"
                     showZ={false}
+                    onMouseDown={() => {
+                        if (interactionLockRef) interactionLockRef.current = true
+                    }}
                     onChange={() => { clampPosition2D() }}
                     onMouseUp={() => {
+                        if (interactionLockRef) interactionLockRef.current = false
                         clampPosition2D()
                         if (groupRef.current) {
                             const { x, y } = groupRef.current.position
@@ -377,14 +574,20 @@ const Furniture2DItem = ({ furniture, index, planeWidth, planeHeight, selected, 
     )
 }
 
-export default function Room({ width = 10, height = 10, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, onUpdateFurniture = () => {}, switchDim = false, wallColor = '#ffffff', floorColor = '#ffffff', isMakingMode = false }) {
+export default function Room({ width = 10, height = 10, roomShape = 'rectangle', onUpdateRoomShape = () => {}, onUpdateRoomSize = () => {}, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, onUpdateFurniture = () => {}, switchDim = false, wallColor = '#ffffff', floorColor = '#ffffff', isMakingMode = false }) {
     const aspect = (height === 0) ? 1 : (width / height)
+    const normalizedRoomShape = normalizeRoomShape(roomShape)
+    const isRectangularRoom = normalizedRoomShape === 'rectangle'
 
     if (isMakingMode) {
         return (
-            <div className="room" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0', color: '#333' }}>
-                <h2>作成モード</h2>
-            </div>
+            <RoomCreateMode
+                width={width}
+                height={height}
+                shape={normalizedRoomShape}
+                onShapeChange={onUpdateRoomShape}
+                onSizeChange={onUpdateRoomSize}
+            />
         )
     }
 
@@ -397,9 +600,61 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
         planeHeight = longSide
         planeWidth = longSide * aspect
     }
+    const roomPolygon = useMemo(() => getRoomPolygonPoints(normalizedRoomShape, planeWidth, planeHeight), [normalizedRoomShape, planeWidth, planeHeight])
+    const roomPolygon2D = useMemo(() => roomPolygon.map((p) => ({ x: p.x, y: planeHeight - p.y })), [roomPolygon, planeHeight])
+    const roomShape2D = useMemo(() => {
+        const shape = new THREE.Shape()
+        const first = roomPolygon[0]
+        shape.moveTo(first.x, planeHeight - first.y)
+        for (let i = 1; i < roomPolygon.length; i += 1) {
+            shape.lineTo(roomPolygon[i].x, planeHeight - roomPolygon[i].y)
+        }
+        shape.closePath()
+        return shape
+    }, [roomPolygon, planeHeight])
+    const roomOutline2D = useMemo(() => {
+        const outline = roomPolygon.map((p) => [p.x, planeHeight - p.y, -0.05])
+        return [...outline, outline[0]]
+    }, [roomPolygon, planeHeight])
+    const roomShape3D = useMemo(() => {
+        const shape = new THREE.Shape()
+        const first = roomPolygon[0]
+        shape.moveTo(first.x, -first.y)
+        for (let i = 1; i < roomPolygon.length; i += 1) {
+            shape.lineTo(roomPolygon[i].x, -roomPolygon[i].y)
+        }
+        shape.closePath()
+        return shape
+    }, [roomPolygon])
+    const roomOutline3D = useMemo(() => {
+        const outline = roomPolygon.map((p) => [p.x, 0.01, p.y])
+        return [...outline, outline[0]]
+    }, [roomPolygon])
+    const wallSegments = useMemo(() => {
+        return roomPolygon.map((start, i) => {
+            const end = roomPolygon[(i + 1) % roomPolygon.length]
+            return { start, end, key: `${start.x}-${start.y}-${end.x}-${end.y}` }
+        })
+    }, [roomPolygon])
     const roomHeight = 2.4 //一般的な部屋の高さ(m)
+    const ZOOM_MIN = 0.4
+    const ZOOM_MAX = 2.0
 
     const roomGroup = useRef()
+    const interactionLockRef = useRef(false)
+    const [zoom, setZoom] = useState(() => {
+        const v = parseFloat(localStorage.getItem('roomZoom'))
+        if (!Number.isFinite(v)) return 1.0
+        return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v))
+    })
+    const [cameraAngleH, setCameraAngleH] = useState(Math.PI / 4)
+    const [cameraAngleV, setCameraAngleV] = useState(Math.PI / 4)
+
+    const updateZoom = (nextZoom) => {
+        const clamped = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, nextZoom))
+        setZoom(clamped)
+        try { localStorage.setItem('roomZoom', String(clamped)) } catch (_) {}
+    }
 
     useEffect(() => {
         const onKeyDown = (event) => {
@@ -421,26 +676,67 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
         return () => window.removeEventListener('keydown', onKeyDown)
     }, [selectedIndex, furnitureList, onUpdateFurniture])
 
+    useEffect(() => {
+        const step = Math.PI / 36
+        const onArrowKey = (event) => {
+            const tag = document.activeElement?.tagName
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+            switch (event.key) {
+                case 'ArrowLeft':
+                    event.preventDefault()
+                    setCameraAngleH(prev => prev - step)
+                    break
+                case 'ArrowRight':
+                    event.preventDefault()
+                    setCameraAngleH(prev => prev + step)
+                    break
+                case 'ArrowUp':
+                    event.preventDefault()
+                    setCameraAngleV(prev => Math.min(Math.PI / 2 - 0.05, prev + step))
+                    break
+                case 'ArrowDown':
+                    event.preventDefault()
+                    setCameraAngleV(prev => Math.max(0.05, prev - step))
+                    break
+                default:
+                    break
+            }
+        }
+        window.addEventListener('keydown', onArrowKey)
+        return () => window.removeEventListener('keydown', onArrowKey)
+    }, [])
+
     const CameraController = ({ is3D = false }) => {
         const { camera } = useThree()
         
         useEffect(() => {
+            const dist3D = 20 / zoom
+            const dist2D = 10
             if (is3D) {
-                camera.position.set(10, 10, 10)
-                camera.lookAt(planeWidth / 2, 0, planeHeight / 2)
+                const cx = planeWidth / 2
+                const cz = planeHeight / 2
+                const x = cx + dist3D * Math.sin(cameraAngleH) * Math.cos(cameraAngleV)
+                const y = dist3D * Math.sin(cameraAngleV)
+                const z = cz + dist3D * Math.cos(cameraAngleH) * Math.cos(cameraAngleV)
+                camera.position.set(x, y, z)
+                camera.lookAt(cx, 0, cz)
             } else {
-                camera.position.set(planeWidth / 2, planeHeight / 2, 10)
+                camera.position.set(planeWidth / 2, planeHeight / 2, dist2D)
                 camera.lookAt(planeWidth / 2, planeHeight / 2, 0)
             }
             camera.updateProjectionMatrix()
-        }, [is3D, camera])
+        }, [is3D, camera, zoom, cameraAngleH, cameraAngleV])
         
         return null
     }
 
     const wall3DMesh = (size, position, rotation, color = wallColor) => {
         return (
-            <group position={position} rotation={rotation} onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(null) }}>
+            <group position={position} rotation={rotation} onPointerDown={(e) => {
+                e.stopPropagation()
+                if (interactionLockRef.current) return
+                onSelectFurniture(null)
+            }}>
                 <mesh renderOrder={0}>
                     <planeGeometry args={size} />
                     <meshBasicMaterial color={color} side={THREE.DoubleSide} toneMapped={false} />
@@ -453,17 +749,98 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
         )
     }
 
+    const wall3DFromEdge = (start, end, color = wallColor, key = '') => {
+        const dx = end.x - start.x
+        const dz = end.y - start.y
+        const wallLength = Math.hypot(dx, dz)
+        const midX = (start.x + end.x) / 2
+        const midZ = (start.y + end.y) / 2
+        const rotY = Math.atan2(dz, dx)
+
+        return (
+            <group
+                key={key}
+                position={[midX, roomHeight / 2, midZ]}
+                rotation={[0, rotY, 0]}
+                onPointerDown={(e) => {
+                    e.stopPropagation()
+                    if (interactionLockRef.current) return
+                    onSelectFurniture(null)
+                }}
+            >
+                <mesh renderOrder={0}>
+                    <planeGeometry args={[wallLength, roomHeight]} />
+                    <meshBasicMaterial color={color} side={THREE.DoubleSide} toneMapped={false} />
+                </mesh>
+                <lineSegments renderOrder={1}>
+                    <edgesGeometry args={[new THREE.PlaneGeometry(wallLength, roomHeight)]} />
+                    <lineBasicMaterial color="#ff0000" depthTest={false} />
+                </lineSegments>
+            </group>
+        )
+    }
+
     return (
-        <div className="room">
+        <div className="room" style={{ position: 'relative' }}>
+            <div className="zoom-control">
+                <label className="zoom-label">表示サイズ</label>
+                <input
+                    type="range"
+                    min={ZOOM_MIN}
+                    max={ZOOM_MAX}
+                    step="0.1"
+                    value={zoom}
+                    disabled={!switchDim}
+                    onChange={(e) => updateZoom(parseFloat(e.target.value))}
+                    className="zoom-slider"
+                />
+                <input
+                    type="number"
+                    min={40}
+                    max={200}
+                    step={10}
+                    value={Math.round(zoom * 100)}
+                    disabled={!switchDim}
+                    onChange={(e) => {
+                        const percent = parseInt(e.target.value, 10)
+                        if (!Number.isFinite(percent)) return
+                        updateZoom(percent / 100)
+                    }}
+                    className="zoom-number"
+                    aria-label="表示サイズ(%)"
+                />
+                <span className="zoom-value">%</span>
+            </div>
             {switchDim ? (
                 <Canvas className="canvas-3d">
                     <PerspectiveCamera makeDefault position={[10, 10, 10]} fov={40} />
                     <CameraController is3D={true} />
                     <ambientLight intensity={0.8} />
                     <directionalLight position={[5, 5, 5]} intensity={0.6} />
-                    {wall3DMesh([planeWidth, roomHeight], [planeWidth / 2, roomHeight / 2, 0], [0, 0, 0])}
-                    {wall3DMesh([planeHeight, roomHeight], [0, roomHeight / 2, planeHeight / 2], [0, Math.PI / 2, 0])}
-                    {wall3DMesh([planeWidth, planeHeight], [planeWidth / 2, 0, planeHeight / 2], [-Math.PI / 2, 0, 0], floorColor)}
+                    {isRectangularRoom ? (
+                        <>
+                            {wall3DMesh([planeWidth, roomHeight], [planeWidth / 2, roomHeight / 2, 0], [0, 0, 0])}
+                            {wall3DMesh([planeHeight, roomHeight], [0, roomHeight / 2, planeHeight / 2], [0, Math.PI / 2, 0])}
+                            {wall3DMesh([planeWidth, planeHeight], [planeWidth / 2, 0, planeHeight / 2], [-Math.PI / 2, 0, 0], floorColor)}
+                        </>
+                    ) : (
+                        <>
+                            {wallSegments.map((seg) => wall3DFromEdge(seg.start, seg.end, wallColor, seg.key))}
+                            <mesh
+                                position={[0, 0, 0]}
+                                rotation={[-Math.PI / 2, 0, 0]}
+                                onPointerDown={(e) => {
+                                    e.stopPropagation()
+                                    if (interactionLockRef.current) return
+                                    onSelectFurniture(null)
+                                }}
+                            >
+                                <shapeGeometry args={[roomShape3D]} />
+                                <meshBasicMaterial color={floorColor} side={THREE.DoubleSide} toneMapped={false} />
+                            </mesh>
+                            <Line points={roomOutline3D} color="#000000" lineWidth={1.2} />
+                        </>
+                    )}
 
                     {Array.isArray(furnitureList) && furnitureList.map((f, i) => (
                         <Furniture3DItem
@@ -473,9 +850,11 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                             planeWidth={planeWidth}
                             planeHeight={planeHeight}
                             roomHeight={roomHeight}
+                            roomPolygon={roomPolygon}
                             selected={selectedIndex === i}
                             onSelect={onSelectFurniture}
                             onUpdate={onUpdateFurniture}
+                            interactionLockRef={interactionLockRef}
                         />
                     ))}
                 </Canvas>
@@ -487,18 +866,42 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                     <directionalLight position={[5, 5, 5]} intensity={0.8} />
 
                     <group ref={roomGroup} position={[0, 0, 0]}>
-                        <mesh
-                            renderOrder={-1}
-                            position={[planeWidth / 2, planeHeight / 2, -0.1]}
-                            onPointerDown={(e) => { e.stopPropagation(); onSelectFurniture(null) }}
-                        >
-                             <planeGeometry args={[planeWidth, planeHeight]} />
-                             <meshBasicMaterial color={floorColor} toneMapped={false} />
-                        </mesh>
-                        <lineSegments position={[planeWidth / 2, planeHeight / 2, -0.05]}>
-                            <edgesGeometry args={[new THREE.PlaneGeometry(planeWidth, planeHeight)]} />
-                            <lineBasicMaterial color="#000000" />
-                        </lineSegments>
+                        {isRectangularRoom ? (
+                            <>
+                                <mesh
+                                    renderOrder={-1}
+                                    position={[planeWidth / 2, planeHeight / 2, -0.1]}
+                                    onPointerDown={(e) => {
+                                        e.stopPropagation()
+                                        if (interactionLockRef.current) return
+                                        onSelectFurniture(null)
+                                    }}
+                                >
+                                     <planeGeometry args={[planeWidth, planeHeight]} />
+                                     <meshBasicMaterial color={floorColor} toneMapped={false} />
+                                </mesh>
+                                <lineSegments position={[planeWidth / 2, planeHeight / 2, -0.05]}>
+                                    <edgesGeometry args={[new THREE.PlaneGeometry(planeWidth, planeHeight)]} />
+                                    <lineBasicMaterial color="#000000" />
+                                </lineSegments>
+                            </>
+                        ) : (
+                            <>
+                                <mesh
+                                    renderOrder={-1}
+                                    position={[0, 0, -0.1]}
+                                    onPointerDown={(e) => {
+                                        e.stopPropagation()
+                                        if (interactionLockRef.current) return
+                                        onSelectFurniture(null)
+                                    }}
+                                >
+                                     <shapeGeometry args={[roomShape2D]} />
+                                     <meshBasicMaterial color={floorColor} toneMapped={false} />
+                                </mesh>
+                                <Line points={roomOutline2D} color="#000000" lineWidth={1.2} />
+                            </>
+                        )}
 
                         {Array.isArray(furnitureList) && furnitureList.map((f, i) => (
                             <Furniture2DItem
@@ -507,9 +910,11 @@ export default function Room({ width = 10, height = 10, scale = 1, furnitureList
                                 furniture={f}
                                 planeWidth={planeWidth}
                                 planeHeight={planeHeight}
+                                roomPolygon={roomPolygon2D}
                                 selected={selectedIndex === i}
                                 onSelect={onSelectFurniture}
                                 onUpdate={onUpdateFurniture}
+                                interactionLockRef={interactionLockRef}
                             />
                         ))}
                     </group>
