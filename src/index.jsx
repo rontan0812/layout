@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import LeftBar from './LeftBar'
 import Room from './Room'
-import { normalizeRoomShape } from './roomShape'
+import { DEFAULT_ROOM_INSET, normalizeRoomInsetPair, normalizeRoomShape } from './roomShape'
 
 const root = ReactDOM.createRoot(document.querySelector('#root'))
 
@@ -39,6 +39,11 @@ export default function App() {
         return normalizeRoomShape(saved)
     })
 
+    const [roomInset, setRoomInset] = useState(() => {
+        const saved = localStorage.getItem('roomInset')
+        return normalizeRoomInsetPair(saved)
+    })
+
     const handleCreate = (width, height) => {
         // 既に間取り確定済みなら何もしない
         if (isMakingRoom) return;
@@ -69,13 +74,18 @@ export default function App() {
             localStorage.removeItem('roomWidth')
             localStorage.removeItem('roomHeight')
             localStorage.removeItem('roomShape')
+            localStorage.removeItem('roomInset')
+            localStorage.removeItem('furnitureList')
         } catch (e) {}
         setRoomVisible(false)
         setRoomWidth(10)
         setRoomHeight(10)
         setIsMakingRoom(false)
         setRoomShape('rectangle')
+        setRoomInset({ x: DEFAULT_ROOM_INSET, y: DEFAULT_ROOM_INSET })
         setMakeMode(false)
+        setFurnitureList([])
+        setSelectedIndex(null)
     }
 
     const handleUpdateRoomShape = (shapeId) => {
@@ -94,6 +104,14 @@ export default function App() {
         try {
             localStorage.setItem('roomWidth', String(safeWidth))
             localStorage.setItem('roomHeight', String(safeHeight))
+        } catch (e) {}
+    }
+
+    const handleUpdateRoomInset = (nextInset) => {
+        const safeInset = normalizeRoomInsetPair(nextInset)
+        setRoomInset(safeInset)
+        try {
+            localStorage.setItem('roomInset', JSON.stringify(safeInset))
         } catch (e) {}
     }
 
@@ -211,8 +229,10 @@ export default function App() {
                     width={roomWidth} 
                     height={roomHeight} 
                     roomShape={roomShape}
+                    roomInset={roomInset}
                     onUpdateRoomShape={handleUpdateRoomShape}
                     onUpdateRoomSize={handleUpdateRoomSize}
+                    onUpdateRoomInset={handleUpdateRoomInset}
                     furnitureList={furnitureList} 
                     selectedIndex={selectedIndex} 
                     onSelectFurniture={handleSelectFurniture} 

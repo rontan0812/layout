@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { useRef, useEffect, useState, useMemo } from 'react'
 import { PerspectiveCamera, TransformControls, Line } from '@react-three/drei'
 import RoomCreateMode from './RoomCreateMode'
-import { getRoomPolygonPoints, normalizeRoomShape } from './roomShape'
+import { getRoomPolygonPoints, normalizeRoomInsetPair, normalizeRoomShape } from './roomShape'
 
 const normalizeRightAngle = (angle) => {
     const twoPi = Math.PI * 2
@@ -574,9 +574,10 @@ const Furniture2DItem = ({ furniture, index, planeWidth, planeHeight, roomPolygo
     )
 }
 
-export default function Room({ width = 10, height = 10, roomShape = 'rectangle', onUpdateRoomShape = () => {}, onUpdateRoomSize = () => {}, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, onUpdateFurniture = () => {}, switchDim = false, wallColor = '#ffffff', floorColor = '#ffffff', isMakingMode = false }) {
+export default function Room({ width = 10, height = 10, roomShape = 'rectangle', roomInset = { x: 0.35, y: 0.35 }, onUpdateRoomShape = () => {}, onUpdateRoomSize = () => {}, onUpdateRoomInset = () => {}, scale = 1, furnitureList = [], selectedIndex = null, onSelectFurniture = () => {}, onUpdateFurniture = () => {}, switchDim = false, wallColor = '#ffffff', floorColor = '#ffffff', isMakingMode = false }) {
     const aspect = (height === 0) ? 1 : (width / height)
     const normalizedRoomShape = normalizeRoomShape(roomShape)
+    const normalizedRoomInset = normalizeRoomInsetPair(roomInset)
     const isRectangularRoom = normalizedRoomShape === 'rectangle'
 
     if (isMakingMode) {
@@ -585,8 +586,10 @@ export default function Room({ width = 10, height = 10, roomShape = 'rectangle',
                 width={width}
                 height={height}
                 shape={normalizedRoomShape}
+                inset={normalizedRoomInset}
                 onShapeChange={onUpdateRoomShape}
                 onSizeChange={onUpdateRoomSize}
+                onInsetChange={onUpdateRoomInset}
             />
         )
     }
@@ -600,7 +603,7 @@ export default function Room({ width = 10, height = 10, roomShape = 'rectangle',
         planeHeight = longSide
         planeWidth = longSide * aspect
     }
-    const roomPolygon = useMemo(() => getRoomPolygonPoints(normalizedRoomShape, planeWidth, planeHeight), [normalizedRoomShape, planeWidth, planeHeight])
+    const roomPolygon = useMemo(() => getRoomPolygonPoints(normalizedRoomShape, planeWidth, planeHeight, normalizedRoomInset), [normalizedRoomShape, planeWidth, planeHeight, normalizedRoomInset])
     const roomPolygon2D = useMemo(() => roomPolygon.map((p) => ({ x: p.x, y: planeHeight - p.y })), [roomPolygon, planeHeight])
     const roomShape2D = useMemo(() => {
         const shape = new THREE.Shape()
@@ -649,6 +652,41 @@ export default function Room({ width = 10, height = 10, roomShape = 'rectangle',
     })
     const [cameraAngleH, setCameraAngleH] = useState(Math.PI / 4)
     const [cameraAngleV, setCameraAngleV] = useState(Math.PI / 4)
+
+    const visibleWallSegments = useMemo(() => {
+        if (isRectangularRoom) return wallSegments
+
+        const area2 = roomPolygon.reduce((acc, p, i) => {
+            const next = roomPolygon[(i + 1) % roomPolygon.length]
+            return acc + (p.x * next.y - next.x * p.y)
+        }, 0)
+        const isCCW = area2 >= 0
+
+        const centerX = planeWidth / 2
+        const centerZ = planeHeight / 2
+        const dist3D = 20 / zoom
+        const cameraX = centerX + dist3D * Math.sin(cameraAngleH) * Math.cos(cameraAngleV)
+        const cameraZ = centerZ + dist3D * Math.cos(cameraAngleH) * Math.cos(cameraAngleV)
+
+        return wallSegments.filter((seg) => {
+            const dx = seg.end.x - seg.start.x
+            const dz = seg.end.y - seg.start.y
+            const len = Math.hypot(dx, dz)
+            if (len < 1e-6) return false
+
+            const midX = (seg.start.x + seg.end.x) / 2
+            const midZ = (seg.start.y + seg.end.y) / 2
+            const toCameraX = cameraX - midX
+            const toCameraZ = cameraZ - midZ
+
+            // Outward normal in XZ plane depends on winding direction.
+            const outwardX = (isCCW ? dz : -dz) / len
+            const outwardZ = (isCCW ? -dx : dx) / len
+            const facingCamera = outwardX * toCameraX + outwardZ * toCameraZ > 0
+
+            return !facingCamera
+        })
+    }, [isRectangularRoom, wallSegments, roomPolygon, planeWidth, planeHeight, zoom, cameraAngleH, cameraAngleV])
 
     const updateZoom = (nextZoom) => {
         const clamped = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, nextZoom))
@@ -755,7 +793,8 @@ export default function Room({ width = 10, height = 10, roomShape = 'rectangle',
         const wallLength = Math.hypot(dx, dz)
         const midX = (start.x + end.x) / 2
         const midZ = (start.y + end.y) / 2
-        const rotY = Math.atan2(dz, dx)
+        // Use opposite Z sign so diagonal edges match the 2D room orientation.
+        const rotY = Math.atan2(-dz, dx)
 
         return (
             <group
@@ -825,7 +864,7 @@ export default function Room({ width = 10, height = 10, roomShape = 'rectangle',
                         </>
                     ) : (
                         <>
-                            {wallSegments.map((seg) => wall3DFromEdge(seg.start, seg.end, wallColor, seg.key))}
+                            {visibleWallSegments.map((seg) => wall3DFromEdge(seg.start, seg.end, wallColor, seg.key))}
                             <mesh
                                 position={[0, 0, 0]}
                                 rotation={[-Math.PI / 2, 0, 0]}

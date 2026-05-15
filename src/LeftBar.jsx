@@ -183,8 +183,9 @@ export default function LeftBar(props) {
 
     return <>
         <div className="leftbar">
+            {!making && (
             <details className="leftbarContents makeRoom">
-                <summary className="summary">{making ? '間取りを修正' : '間取りを作成'}</summary>
+                <summary className="summary">間取りを作成</summary>
                 <div className="input_flex">
                     <p>作成方法：</p>
                     <select value={createMode} onChange={(e) => {
@@ -236,6 +237,7 @@ export default function LeftBar(props) {
                     {/* making=true なら修正・作成モードボタンを非表示にする */}
                 </div>
             </details>
+            )}
             {!isMakingMode && making && (
                 <div>
                 <details className="leftbarContents furniture">
@@ -405,7 +407,6 @@ export default function LeftBar(props) {
                         </div>
                         </>
                     )}
-                    <button id="fixFurnitureButton" onClick={handleFixFurniture}>修正</button>
                 </details>
                 <details className="leftbarContents reset">
                     <summary className="summary">リセット</summary>

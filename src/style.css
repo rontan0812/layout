@@ -34,6 +34,8 @@ button{
 
 .leftbar{
     width: 280px;
+    min-width: 280px;
+    flex: 0 0 280px;
     height: 100%;
     box-sizing: border-box;
     padding: 8px;
@@ -292,6 +294,33 @@ button{
     height: 100%;
     display: block;
     border-radius: 6px;
+    touch-action: none;
+}
+
+.room-drag-handle{
+    fill: #3772ff;
+    stroke: #ffffff;
+    stroke-width: 0.08;
+    cursor: ew-resize;
+}
+
+.room-drag-handle-vertical{
+    cursor: ns-resize;
+}
+
+.room-drag-handle-diagonal{
+    cursor: move;
+}
+
+.room-drag-handle-inset{
+    fill: #e37a22;
+    stroke: #ffffff;
+}
+
+.room-create-caption{
+    margin: 8px 2px 0 2px;
+    color: #514633;
+    font-size: 12px;
 }
 
 @media (max-width: 920px){
